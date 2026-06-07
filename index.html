@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#080916">
+  <meta name="description" content="Sistem kasir rental PlayStation — sesi, timer, jajanan & laporan harian">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kasir PS">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Kasir PS</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== LOADING SCREEN ===== -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-content">
+      <div class="loading-logo">🎮</div>
+      <div class="loading-app-name">Kasir PS</div>
+      <div class="loading-spinner-ring"></div>
+      <div class="loading-text">Memuat aplikasi...</div>
+    </div>
+  </div>
+
+  <!-- ===== AUTH PAGE ===== -->
+  <div id="auth-page" class="hidden">
+    <div class="auth-bg">
+      <div class="auth-orb auth-orb-1"></div>
+      <div class="auth-orb auth-orb-2"></div>
+      <div class="auth-card">
+        <div class="auth-logo-wrap">
+          <span class="auth-logo-icon">🎮</span>
+        </div>
+        <h1 class="auth-title">Kasir PS</h1>
+        <p class="auth-subtitle" id="auth-subtitle">Masuk ke akun kasir kamu</p>
+
+        <div id="auth-error" class="auth-error hidden"></div>
+        <div id="auth-success" class="auth-success hidden"></div>
+
+        <!-- LOGIN -->
+        <div id="login-section">
+          <div class="form-group">
+            <label class="form-label" for="login-email">Email</label>
+            <input type="email" id="login-email" class="form-input" placeholder="email@contoh.com"
+                   autocomplete="email" autocapitalize="off" spellcheck="false" inputmode="email">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <div class="pw-wrap">
+              <input type="password" id="login-password" class="form-input" placeholder="Password"
+                     autocomplete="current-password">
+              <button class="pw-toggle" onclick="togglePw('login-password', this)" tabindex="-1">👁</button>
+            </div>
+          </div>
+          <button class="btn-auth-primary" id="login-btn" onclick="doLogin()">
+            <span class="btn-text">Masuk</span>
+            <span class="btn-spin hidden">⏳ Mohon tunggu...</span>
+          </button>
+          <button class="btn-auth-link" onclick="switchAuthMode('register')">
+            Belum punya akun? <strong>Daftar sekarang</strong>
+          </button>
+        </div>
+
+        <!-- REGISTER -->
+        <div id="register-section" class="hidden">
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email</label>
+            <input type="email" id="reg-email" class="form-input" placeholder="email@contoh.com"
+                   autocomplete="email" autocapitalize="off" inputmode="email">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-password">Password</label>
+            <div class="pw-wrap">
+              <input type="password" id="reg-password" class="form-input" placeholder="Minimal 6 karakter"
+                     autocomplete="new-password">
+              <button class="pw-toggle" onclick="togglePw('reg-password', this)" tabindex="-1">👁</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-confirm">Konfirmasi Password</label>
+            <div class="pw-wrap">
+              <input type="password" id="reg-confirm" class="form-input" placeholder="Ulangi password"
+                     autocomplete="new-password">
+              <button class="pw-toggle" onclick="togglePw('reg-confirm', this)" tabindex="-1">👁</button>
+            </div>
+          </div>
+          <button class="btn-auth-primary" id="reg-btn" onclick="doRegister()">
+            <span class="btn-text">Buat Akun</span>
+            <span class="btn-spin hidden">⏳ Membuat akun...</span>
+          </button>
+          <button class="btn-auth-link" onclick="switchAuthMode('login')">
+            Sudah punya akun? <strong>Masuk</strong>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN APP ===== -->
+  <div id="app" class="hidden">
+
+    <!-- HEADER (Desktop) -->
+    <header id="header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-icon">🎮</span>
+          <div class="logo-text">
+            <span class="store-name">Kasir PS</span>
+            <span class="store-sub">Rental PlayStation</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-center">
+        <div id="live-clock" class="live-clock">
+          <span class="clock-time">--:--:--</span>
+          <span class="clock-date">Memuat...</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <nav class="nav-tabs">
+          <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')">
+            <span class="nav-icon">🖥️</span><span>Dashboard</span>
+          </button>
+          <button class="nav-btn" id="nav-reports" onclick="showPage('reports')">
+            <span class="nav-icon">📊</span><span>Laporan</span>
+          </button>
+          <button class="nav-btn" id="nav-menu" onclick="showPage('menu')">
+            <span class="nav-icon">🍿</span><span>Menu</span>
+          </button>
+        </nav>
+        <div class="header-user">
+          <span class="user-email-badge" id="user-email-badge">👤</span>
+          <button class="btn-logout-header" onclick="doLogout()" title="Keluar">🚪</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main id="main-content">
+
+      <!-- DASHBOARD PAGE -->
+      <div id="page-dashboard" class="page active">
+        <div class="page-header">
+          <div class="page-title-row">
+            <h2 class="page-title">Dashboard Unit PS</h2>
+            <div class="stats-bar">
+              <div class="stat-chip chip-active">
+                <span class="stat-dot dot-active"></span>
+                <span id="stat-active-count">0</span> Aktif
+              </div>
+              <div class="stat-chip chip-waiting">
+                <span class="stat-dot dot-waiting"></span>
+                <span id="stat-waiting-count">0</span> Menunggu
+              </div>
+              <div class="stat-chip chip-idle">
+                <span class="stat-dot dot-idle"></span>
+                <span id="stat-idle-count">11</span> Kosong
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="ps-grid" class="ps-grid"></div>
+      </div>
+
+      <!-- REPORTS PAGE -->
+      <div id="page-reports" class="page">
+        <div class="page-header">
+          <div class="page-title-row">
+            <h2 class="page-title">📊 Laporan Harian</h2>
+            <div class="report-controls">
+              <input type="date" id="report-date" onchange="renderReports()">
+              <button class="btn-secondary" onclick="exportReport()">📥 Export</button>
+            </div>
+          </div>
+        </div>
+        <div id="report-summary" class="report-summary"></div>
+        <div id="report-table-container"></div>
+      </div>
+
+      <!-- MENU JAJANAN PAGE -->
+      <div id="page-menu" class="page">
+        <div class="page-header">
+          <div class="page-title-row">
+            <h2 class="page-title">🍿 Menu Jajanan</h2>
+            <button class="btn-primary" onclick="openAddMenuModal()">+ Tambah Item</button>
+          </div>
+          <p class="page-subtitle">Kelola daftar jajanan. Harga bisa diubah bebas.</p>
+        </div>
+        <div id="menu-grid" class="menu-grid"></div>
+      </div>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION (Mobile) -->
+    <nav id="bottom-nav">
+      <button class="bnav-btn active" id="bnav-dashboard" onclick="showPage('dashboard')">
+        <span class="bnav-icon">🖥️</span>
+        <span class="bnav-label">Dashboard</span>
+      </button>
+      <button class="bnav-btn" id="bnav-reports" onclick="showPage('reports')">
+        <span class="bnav-icon">📊</span>
+        <span class="bnav-label">Laporan</span>
+      </button>
+      <button class="bnav-btn" id="bnav-menu" onclick="showPage('menu')">
+        <span class="bnav-icon">🍿</span>
+        <span class="bnav-label">Menu</span>
+      </button>
+      <button class="bnav-btn bnav-logout" onclick="doLogout()">
+        <span class="bnav-icon">🚪</span>
+        <span class="bnav-label">Keluar</span>
+      </button>
+    </nav>
+
+  </div><!-- /app -->
+
+  <!-- ================================================================ -->
+  <!-- MODALS -->
+  <!-- ================================================================ -->
+
+  <!-- Modal: Buka Sesi -->
+  <div id="modal-open-session" class="modal-overlay hidden" onclick="handleOverlayClick(event,'open-session')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-open-title" class="modal-title">Buka Sesi PS X</h3>
+        <button class="modal-close" onclick="closeModal('open-session')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Jumlah Pemain</label>
+          <div class="player-choice">
+            <button class="player-btn active" id="player-1-btn" onclick="selectPlayers(1)">
+              <span class="player-icon">👤</span>
+              <span class="player-label">1 Orang</span>
+              <span class="player-sub">Sendiri</span>
+            </button>
+            <button class="player-btn" id="player-2-btn" onclick="selectPlayers(2)">
+              <span class="player-icon">👥</span>
+              <span class="player-label">2 Orang</span>
+              <span class="player-sub">Berdua</span>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="session-note">Catatan <span class="optional">(opsional)</span></label>
+          <input type="text" id="session-note" class="form-input" placeholder="Nama pelanggan, dll...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('open-session')">Batal</button>
+        <button class="btn-primary" id="confirm-open-btn" onclick="confirmOpenSession()">
+          <span class="btn-text">🎮 Buka Sesi</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mulai Timer -->
+  <div id="modal-start-timer" class="modal-overlay hidden" onclick="handleOverlayClick(event,'start-timer')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-timer-title" class="modal-title">Mulai Timer PS X</h3>
+        <button class="modal-close" onclick="closeModal('start-timer')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="timer-ps-info" class="info-chips-row"></div>
+        <div class="form-group">
+          <label class="form-label">⏰ Jam Mulai Main</label>
+          <input type="time" id="start-time-input" class="form-input time-input">
+          <small class="form-hint">Masukkan jam saat game sudah mulai berjalan</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">📦 Pilih Paket Durasi</label>
+          <div class="package-grid" id="package-options"></div>
+        </div>
+        <div class="price-preview" id="price-preview" style="display:none">
+          <div class="price-preview-row">
+            <span>Harga Paket</span>
+            <span class="price-value" id="preview-price">Rp 0</span>
+          </div>
+          <div class="price-preview-row bonus-row" id="bonus-row" style="display:none">
+            <span>🎁 Bonus Waktu</span>
+            <span class="bonus-value">+ 30 menit GRATIS</span>
+          </div>
+          <div class="price-preview-row total-row">
+            <span>Total Durasi</span>
+            <span class="duration-value" id="preview-duration">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('start-timer')">Batal</button>
+        <button class="btn-success" id="confirm-timer-btn" onclick="confirmStartTimer()" disabled>
+          <span class="btn-text">▶ Mulai Timer</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Tambah Jajanan -->
+  <div id="modal-snack" class="modal-overlay hidden" onclick="handleOverlayClick(event,'snack')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-snack-title" class="modal-title">🍿 Tambah Jajanan</h3>
+        <button class="modal-close" onclick="closeModal('snack')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Pilih dari Menu</label>
+          <div id="snack-menu-items" class="snack-menu-grid"></div>
+        </div>
+        <div class="divider-row">
+          <span class="divider-line"></span>
+          <span class="divider-text">atau input manual</span>
+          <span class="divider-line"></span>
+        </div>
+        <div class="form-row-inline">
+          <div class="form-group flex-grow">
+            <label class="form-label">Nama Jajanan</label>
+            <input type="text" id="manual-snack-name" class="form-input" placeholder="Chitato, Aqua, dll...">
+          </div>
+          <div class="form-group" style="width:130px;flex-shrink:0">
+            <label class="form-label">Harga (Rp)</label>
+            <input type="number" id="manual-snack-price" class="form-input" placeholder="5000" min="0" step="500" inputmode="numeric">
+          </div>
+        </div>
+        <button class="btn-primary btn-full" id="add-snack-btn" onclick="confirmAddSnack()">
+          <span class="btn-text">+ Tambah Jajanan</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+        <div id="snack-added-list" class="snack-added-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('snack')">Selesai</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Tutup Sesi -->
+  <div id="modal-close-session" class="modal-overlay hidden" onclick="handleOverlayClick(event,'close-session')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-close-title" class="modal-title">Tutup Sesi</h3>
+        <button class="modal-close" onclick="closeModal('close-session')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="close-session-summary"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('close-session')">Batal</button>
+        <button class="btn-danger" id="confirm-close-btn" onclick="confirmCloseSession()">
+          <span class="btn-text">✓ Tutup & Simpan</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Batalkan Sesi -->
+  <div id="modal-confirm-cancel" class="modal-overlay hidden" onclick="handleOverlayClick(event,'confirm-cancel')">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Batalkan Sesi</h3>
+        <button class="modal-close" onclick="closeModal('confirm-cancel')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="cancel-confirm-msg" style="color:var(--text-muted);line-height:1.6"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('confirm-cancel')">Tidak</button>
+        <button class="btn-danger" id="confirm-cancel-btn" onclick="confirmCancelSession()">
+          <span class="btn-text">Ya, Batalkan</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Tambah/Edit Menu Item -->
+  <div id="modal-menu-item" class="modal-overlay hidden" onclick="handleOverlayClick(event,'menu-item')">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3 id="modal-menu-title" class="modal-title">Tambah Item Menu</h3>
+        <button class="modal-close" onclick="closeModal('menu-item')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="menu-item-id">
+        <div class="form-group">
+          <label class="form-label" for="menu-item-name">Nama Item</label>
+          <input type="text" id="menu-item-name" class="form-input" placeholder="Chitato, Aqua Botol, dll...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="menu-item-price">Harga (Rp)</label>
+          <input type="number" id="menu-item-price" class="form-input" placeholder="5000" min="0" step="500" inputmode="numeric">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('menu-item')">Batal</button>
+        <button class="btn-primary" id="save-menu-btn" onclick="confirmSaveMenuItem()">
+          <span class="btn-text">💾 Simpan</span>
+          <span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div id="notification-container"></div>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>

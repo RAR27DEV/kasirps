@@ -1,0 +1,28 @@
+{
+  "name": "Kasir PS",
+  "short_name": "Kasir PS",
+  "description": "Sistem kasir rental PlayStation — kelola sesi, timer, jajanan & laporan",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080916",
+  "theme_color": "#080916",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "screenshots": []
+}
