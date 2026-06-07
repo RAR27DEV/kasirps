@@ -437,6 +437,15 @@ input, textarea { font-family: var(--font); }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
 .optional { font-weight: 400; color: var(--text-dim); font-size: 0.73rem; }
+.live-badge {
+  font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em;
+  color: var(--green); background: var(--green-bg);
+  border: 1px solid var(--green-border);
+  border-radius: 99px; padding: 1px 7px;
+  animation: livePulse 1.2s ease infinite;
+  vertical-align: middle; margin-left: 5px;
+}
+@keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
 .form-input { padding: 11px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-md); background: rgba(0,0,0,0.3); color: var(--text); font-family: var(--font); font-size: 1rem; transition: var(--transition); outline: none; min-height: 44px; }
 .form-input:focus { border-color: var(--ps4); box-shadow: 0 0 0 3px rgba(96,165,250,0.15); }
 .form-input::placeholder { color: var(--text-dim); }

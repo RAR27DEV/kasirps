@@ -15,10 +15,10 @@ const PS_UNITS = [
   {id:9,type:'PS3'},{id:10,type:'PS3'},{id:11,type:'PS3'}
 ];
 
-// Default prices (used if user hasn't changed them)
+// Default prices — 90min & 150min are COMPUTED (60+30 and 120+30)
 const DEFAULT_PRICES = {
-  PS3: { 1:{30:3000,60:5000,90:7500,120:10000,150:12500,180:15000}, 2:{30:4000,60:7000,90:10500,120:14000,150:17500,180:21000} },
-  PS4: { 1:{30:4000,60:8000,90:12000,120:16000,150:20000,180:24000}, 2:{30:5000,60:10000,90:15000,120:20000,150:25000,180:30000} }
+  PS3: { 1:{30:3000,60:5000,120:10000,180:15000}, 2:{30:4000,60:7000,120:14000,180:21000} },
+  PS4: { 1:{30:4000,60:8000,120:16000,180:24000}, 2:{30:5000,60:10000,120:20000,180:30000} }
 };
 
 const PACKAGES = [
@@ -43,13 +43,24 @@ let _modalPsId       = null;
 let _selectedPlayers = 1;
 let _selectedPackage = null;
 let _cancelPsId      = null;
-let _adjustMinutes   = 0;    // pending adjust time (minutes, signed)
+let _adjustMinutes      = 0;    // pending adjust time (minutes, signed)
+let _timerClockInterval = null; // live clock in start-timer modal
 
 const alertShown = {};
 
 // ===== PRICE HELPER =====
+// 90min  = harga 1 Jam + harga 30 Menit (otomatis)
+// 150min = harga 2 Jam + harga 30 Menit (otomatis)
 function getPrice(psType, players, minutes) {
   const prices = priceSettings || DEFAULT_PRICES;
+  if (minutes === 90) {
+    return (prices[psType]?.[players]?.[60]  ?? 0)
+         + (prices[psType]?.[players]?.[30]  ?? 0);
+  }
+  if (minutes === 150) {
+    return (prices[psType]?.[players]?.[120] ?? 0)
+         + (prices[psType]?.[players]?.[30]  ?? 0);
+  }
   return prices[psType]?.[players]?.[minutes] ?? 0;
 }
 
@@ -702,8 +713,27 @@ function openStartTimerModal(psId) {
     <span class="info-chip ${unit.type==='PS4'?'chip-ps4':'chip-ps3'}">${unit.type}</span>
     <span class="info-chip chip-player">👥 ${playerTxt}</span>`;
 
-  const now = new Date();
-  document.getElementById('start-time-input').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  // ===== LIVE CLOCK =====
+  const timeInput = document.getElementById('start-time-input');
+  if (_timerClockInterval) { clearInterval(_timerClockInterval); _timerClockInterval = null; }
+
+  let _clockLocked = false;
+  function _syncClock() {
+    if (_clockLocked) return;
+    const n = new Date();
+    timeInput.value = `${pad(n.getHours())}:${pad(n.getMinutes())}`;
+  }
+  _syncClock(); // set immediately
+  _timerClockInterval = setInterval(_syncClock, 1000);
+
+  // Stop live update if user taps/changes the time manually
+  timeInput.addEventListener('focus', function stopClock() {
+    _clockLocked = true;
+    if (_timerClockInterval) { clearInterval(_timerClockInterval); _timerClockInterval = null; }
+    timeInput.removeEventListener('focus', stopClock);
+    const liveEl = document.getElementById('time-live-badge');
+    if (liveEl) liveEl.style.display = 'none';
+  });
 
   const grid = document.getElementById('package-options');
   // Use 3 columns when there are more than 4 packages
@@ -1026,13 +1056,13 @@ function renderPriceEditor() {
     const typeCls = psType === 'PS4' ? 'badge-ps4' : 'badge-ps3';
     const typeColor = psType === 'PS4' ? 'var(--ps4)' : 'var(--ps3)';
 
+    // 90min & 150min harganya computed (1J+30M dan 2J+30M)
+    // jadi tidak perlu diset manual di sini
     const rows = [
-      { label:'30 Menit',       min:30  },
-      { label:'1 Jam',          min:60  },
-      { label:'1 Jam 30 Menit', min:90  },
-      { label:'2 Jam',          min:120 },
-      { label:'2 Jam 30 Menit', min:150 },
-      { label:'3 Jam',          min:180 }
+      { label:'30 Menit', min:30  },
+      { label:'1 Jam',    min:60  },
+      { label:'2 Jam',    min:120 },
+      { label:'3 Jam',    min:180 }
     ];
 
     return `
@@ -1287,6 +1317,10 @@ function closeModal(type) {
   const m = document.getElementById(`modal-${type}`);
   if (m) m.classList.add('hidden');
   document.body.style.overflow = '';
+  // Clear live clock when timer modal closes
+  if (type === 'start-timer' && _timerClockInterval) {
+    clearInterval(_timerClockInterval); _timerClockInterval = null;
+  }
 }
 function handleOverlayClick(e, type) {
   if (e.target === e.currentTarget) closeModal(type);
