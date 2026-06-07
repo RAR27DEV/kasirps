@@ -3,7 +3,7 @@
 // Offline-capable PWA
 // =============================================
 
-const CACHE_NAME   = 'kasirps-v3';
+const CACHE_NAME   = 'kasirps-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
