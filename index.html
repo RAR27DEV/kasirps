@@ -391,6 +391,73 @@
     </div>
   </div>
 
+  <!-- Modal: Ubah Waktu -->
+  <div id="modal-adjust-time" class="modal-overlay hidden" onclick="handleOverlayClick(event,'adjust-time')">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3 id="modal-adjust-title" class="modal-title">⏱️ Ubah Waktu</h3>
+        <button class="modal-close" onclick="closeModal('adjust-time')">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- Current timer -->
+        <div class="adjust-current-box">
+          <span class="adjust-current-label">Sisa waktu saat ini</span>
+          <span class="adjust-current-val" id="adjust-current-remaining">--:--:--</span>
+        </div>
+        <!-- Quick add buttons -->
+        <div class="form-group">
+          <label class="form-label">⬆️ Tambah Waktu</label>
+          <div class="adj-quick-row">
+            <button class="adj-btn add" onclick="adjustTimeQuick(15)">+15 min</button>
+            <button class="adj-btn add" onclick="adjustTimeQuick(30)">+30 min</button>
+            <button class="adj-btn add" onclick="adjustTimeQuick(60)">+60 min</button>
+            <button class="adj-btn add" onclick="adjustTimeQuick(90)">+90 min</button>
+          </div>
+        </div>
+        <!-- Quick subtract buttons -->
+        <div class="form-group">
+          <label class="form-label">⬇️ Kurangi Waktu</label>
+          <div class="adj-quick-row adj-quick-3col">
+            <button class="adj-btn subtract" onclick="adjustTimeQuick(-15)">-15 min</button>
+            <button class="adj-btn subtract" onclick="adjustTimeQuick(-30)">-30 min</button>
+            <button class="adj-btn subtract" onclick="adjustTimeQuick(-60)">-60 min</button>
+          </div>
+        </div>
+        <!-- Manual input -->
+        <div class="form-group">
+          <label class="form-label">Input Manual (menit) <span class="optional">positif = tambah, negatif = kurangi</span></label>
+          <input type="number" id="adjust-minutes-input" class="form-input"
+            placeholder="Contoh: 30 atau -15"
+            oninput="updateAdjustPreview()" inputmode="numeric">
+        </div>
+        <!-- Preview -->
+        <div id="adjust-preview" class="adjust-preview" style="display:none">
+          <div class="adjust-preview-row">
+            <span>Perubahan waktu</span>
+            <span id="adjust-change-txt" style="font-weight:800">—</span>
+          </div>
+          <div class="adjust-preview-row">
+            <span>Jam selesai baru</span>
+            <span id="adjust-new-end" style="font-weight:800;color:var(--text)">—</span>
+          </div>
+        </div>
+        <!-- Extra charge -->
+        <div class="form-group">
+          <label class="form-label">Biaya Tambahan (Rp) <span class="optional">opsional</span></label>
+          <input type="number" id="adjust-extra-price" class="form-input"
+            placeholder="0 = tidak ada biaya tambahan" min="0" step="500" inputmode="numeric" value="0">
+          <small class="form-hint">Isi jika ada biaya tambahan untuk perpanjangan waktu</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" onclick="closeModal('adjust-time')">Batal</button>
+        <button class="btn-primary" id="confirm-adjust-btn" onclick="confirmAdjustTime()" disabled>
+          <span class="btn-text">✓ Terapkan</span><span class="btn-spin hidden">⏳</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Notifications -->
   <div id="notification-container"></div>
 

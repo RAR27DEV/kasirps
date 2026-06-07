@@ -17,15 +17,17 @@ const PS_UNITS = [
 
 // Default prices (used if user hasn't changed them)
 const DEFAULT_PRICES = {
-  PS3: { 1:{30:3000,60:5000,120:10000,180:15000}, 2:{30:4000,60:7000,120:14000,180:21000} },
-  PS4: { 1:{30:4000,60:8000,120:16000,180:24000}, 2:{30:5000,60:10000,120:20000,180:30000} }
+  PS3: { 1:{30:3000,60:5000,90:7500,120:10000,150:12500,180:15000}, 2:{30:4000,60:7000,90:10500,120:14000,150:17500,180:21000} },
+  PS4: { 1:{30:4000,60:8000,90:12000,120:16000,150:20000,180:24000}, 2:{30:5000,60:10000,90:15000,120:20000,150:25000,180:30000} }
 };
 
 const PACKAGES = [
-  {label:'30 Menit', minutes:30,  bonus:0},
-  {label:'1 Jam',    minutes:60,  bonus:0},
-  {label:'2 Jam',    minutes:120, bonus:0},
-  {label:'3 Jam',    minutes:180, bonus:30}
+  {label:'30 Menit',       minutes:30,  bonus:0},
+  {label:'1 Jam',          minutes:60,  bonus:0},
+  {label:'1 Jam 30 Menit', minutes:90,  bonus:0},
+  {label:'2 Jam',          minutes:120, bonus:0},
+  {label:'2 Jam 30 Menit', minutes:150, bonus:0},
+  {label:'3 Jam',          minutes:180, bonus:30}
 ];
 
 // ===== STATE =====
@@ -41,6 +43,7 @@ let _modalPsId       = null;
 let _selectedPlayers = 1;
 let _selectedPackage = null;
 let _cancelPsId      = null;
+let _adjustMinutes   = 0;    // pending adjust time (minutes, signed)
 
 const alertShown = {};
 
@@ -557,6 +560,7 @@ function buildActiveSheetBody(psId, session) {
       <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>
     </div>
     <div class="sheet-actions">
+      <button class="btn-adjust-time" onclick="openAdjustTimeModal(${psId})">⏱️ Tambah / Kurangi Waktu</button>
       <button class="btn-snack" onclick="openSnackModal(${psId})">🍿 Tambah Jajanan</button>
       <button class="btn-pay ${paidCls}" id="sheet-pay-btn-${psId}" onclick="togglePayment(${psId})">${paidTxt}</button>
       <button class="btn-close-session" onclick="openCloseSessionModal(${psId})">❌ Tutup Sesi</button>
@@ -702,6 +706,8 @@ function openStartTimerModal(psId) {
   document.getElementById('start-time-input').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
   const grid = document.getElementById('package-options');
+  // Use 3 columns when there are more than 4 packages
+  grid.style.gridTemplateColumns = `repeat(${PACKAGES.length > 4 ? 3 : 2}, 1fr)`;
   grid.innerHTML = PACKAGES.map(pkg => {
     const price    = getPrice(unit.type, session.players, pkg.minutes);
     const bonusTxt = pkg.bonus ? `<span class="pkg-bonus">🎁 +${pkg.bonus}min bonus</span>` : '';
@@ -1021,10 +1027,12 @@ function renderPriceEditor() {
     const typeColor = psType === 'PS4' ? 'var(--ps4)' : 'var(--ps3)';
 
     const rows = [
-      { label:'30 Menit', min:30  },
-      { label:'1 Jam',    min:60  },
-      { label:'2 Jam',    min:120 },
-      { label:'3 Jam',    min:180 }
+      { label:'30 Menit',       min:30  },
+      { label:'1 Jam',          min:60  },
+      { label:'1 Jam 30 Menit', min:90  },
+      { label:'2 Jam',          min:120 },
+      { label:'2 Jam 30 Menit', min:150 },
+      { label:'3 Jam',          min:180 }
     ];
 
     return `
@@ -1214,7 +1222,9 @@ async function renderReports() {
               <td class="snack-cell">${snackTxt}</td>
               <td style="white-space:nowrap">${fmtRp(s.price||0)}</td>
               <td style="white-space:nowrap"><strong>${fmtRp(total)}</strong></td>
-              <td><span class="table-paid-badge ${s.paid?'paid':'unpaid'}">${s.paid?'✓ Lunas':'⚠ Belum'}</span></td>
+              <td onclick="toggleReportPaid('${s.id}',${s.paid})" style="cursor:pointer" title="Klik untuk ubah status bayar">
+                <span class="table-paid-badge ${s.paid?'paid':'unpaid'}">${s.paid?'✓ Lunas':'⚠ Belum'}</span>
+              </td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1280,6 +1290,106 @@ function closeModal(type) {
 }
 function handleOverlayClick(e, type) {
   if (e.target === e.currentTarget) closeModal(type);
+}
+
+// ===== ADJUST TIME =====
+function openAdjustTimeModal(psId) {
+  _modalPsId     = psId;
+  _adjustMinutes = 0;
+  const session  = sessions[psId];
+  if (!session || session.status !== 'ACTIVE') return;
+
+  document.getElementById('modal-adjust-title').textContent = `⏱️ Ubah Waktu PS ${psId}`;
+  const remaining = Math.max(0, session.endTimestamp - Date.now());
+  document.getElementById('adjust-current-remaining').textContent = fmtCountdown(remaining);
+  document.getElementById('adjust-minutes-input').value = '';
+  document.getElementById('adjust-extra-price').value   = '0';
+  document.getElementById('adjust-preview').style.display = 'none';
+  document.getElementById('confirm-adjust-btn').disabled  = true;
+  showModal('adjust-time');
+}
+
+function adjustTimeQuick(delta) {
+  _adjustMinutes += delta;
+  document.getElementById('adjust-minutes-input').value = _adjustMinutes;
+  updateAdjustPreview();
+}
+
+function updateAdjustPreview() {
+  const session  = sessions[_modalPsId];
+  if (!session) return;
+  const minutes  = parseInt(document.getElementById('adjust-minutes-input').value) || 0;
+  _adjustMinutes = minutes;
+
+  const previewEl = document.getElementById('adjust-preview');
+  const changeTxt = document.getElementById('adjust-change-txt');
+  const newEndEl  = document.getElementById('adjust-new-end');
+
+  if (minutes !== 0) {
+    const newEndTs  = session.endTimestamp + (minutes * 60 * 1000);
+    const newEndDt  = new Date(newEndTs);
+    previewEl.style.display  = 'flex';
+    const sign = minutes > 0 ? '+' : '';
+    changeTxt.textContent    = `${sign}${minutes} menit`;
+    changeTxt.style.color    = minutes > 0 ? 'var(--green)' : 'var(--red)';
+    newEndEl.textContent     = fmtTime(newEndDt);
+    document.getElementById('confirm-adjust-btn').disabled = false;
+  } else {
+    previewEl.style.display  = 'none';
+    document.getElementById('confirm-adjust-btn').disabled = true;
+  }
+}
+
+async function confirmAdjustTime() {
+  const psId      = _modalPsId;
+  const session   = sessions[psId];
+  if (!session) return;
+
+  const minutes    = parseInt(document.getElementById('adjust-minutes-input').value) || 0;
+  const extraPrice = parseInt(document.getElementById('adjust-extra-price').value)   || 0;
+  if (minutes === 0 && extraPrice === 0) { showNotification('Tidak ada perubahan.', 'info'); return; }
+
+  const newEndTs    = session.endTimestamp + (minutes * 60 * 1000);
+  const newTotalMin = (session.totalMinutes || 0) + minutes;
+  const newPrice    = (session.price || 0) + extraPrice;
+
+  setBtnLoading('confirm-adjust-btn', true);
+
+  const { data, error } = await db.from('sessions').update({
+    end_timestamp: newEndTs, total_minutes: newTotalMin, price: newPrice
+  }).eq('id', session.id).eq('user_id', currentUser.id).select().single();
+
+  setBtnLoading('confirm-adjust-btn', false);
+  if (error) { showNotification('Gagal ubah waktu: ' + error.message, 'danger'); return; }
+
+  sessions[psId] = fromDB(data);
+  alertShown[psId] = {}; // reset warning alerts after time change
+
+  closeModal('adjust-time');
+  renderDashboard();
+  refreshBottomSheet();
+
+  const sign = minutes > 0 ? '+' : '';
+  const parts = [];
+  if (minutes !== 0) parts.push(`waktu ${sign}${minutes} menit`);
+  if (extraPrice > 0) parts.push(`biaya +${fmtRp(extraPrice)}`);
+  showNotification(`PS ${psId}: ${parts.join(', ')}`, minutes >= 0 ? 'success' : 'warning');
+}
+
+// ===== TOGGLE REPORT PAID =====
+async function toggleReportPaid(sessionId, currentPaid) {
+  const newPaid = !currentPaid;
+  const { error } = await db.from('sessions')
+    .update({ paid: newPaid })
+    .eq('id', sessionId).eq('user_id', currentUser.id);
+
+  if (error) { showNotification('Gagal update pembayaran: ' + error.message, 'danger'); return; }
+
+  showNotification(
+    newPaid ? '✓ Sesi ditandai SUDAH BAYAR' : '⚠️ Sesi ditandai BELUM BAYAR',
+    newPaid ? 'success' : 'warning'
+  );
+  renderReports(); // re-render to reflect change
 }
 
 // ===== DESKTOP CARD HTML (unchanged for desktop) =====
@@ -1362,6 +1472,7 @@ function buildCardHTML(unit, session) {
         </div>
       </div>
       <div class="card-actions">
+        <button class="btn-adjust-time" onclick="openAdjustTimeModal(${unit.id})">⏱️ Ubah Waktu</button>
         <button class="btn-snack" onclick="openSnackModal(${unit.id})">🍿 Tambah Jajanan</button>
         <button class="btn-pay ${paidCls}" id="btn-pay-${unit.id}" onclick="togglePayment(${unit.id})">${paidTxt}</button>
         <button class="btn-close-session" onclick="openCloseSessionModal(${unit.id})">❌ Tutup Sesi</button>
