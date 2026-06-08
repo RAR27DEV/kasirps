@@ -1373,35 +1373,142 @@ async function renderReports() {
     return;
   }
 
+  // Group sessions by PS
+  const psGroups = {};
+  PS_UNITS.forEach(u => {
+    psGroups[u.id] = { unit: u, list: [], totalTime: 0, totalSnack: 0, totalRev: 0 };
+  });
+
+  filtered.forEach(s => {
+    if (psGroups[s.psId]) {
+      psGroups[s.psId].list.push(s);
+      const snackTot = s.snacks.reduce((x,y) => x+y.price, 0);
+      psGroups[s.psId].totalTime  += (s.price || 0);
+      psGroups[s.psId].totalSnack += snackTot;
+      psGroups[s.psId].totalRev   += (s.price || 0) + snackTot;
+    }
+  });
+
+  // Calculate snack sales summary
+  const snackSummary = {};
+  filtered.forEach(s => {
+    s.snacks.forEach(sn => {
+      if (!snackSummary[sn.name]) {
+        snackSummary[sn.name] = { count: 0, total: 0 };
+      }
+      snackSummary[sn.name].count += 1;
+      snackSummary[sn.name].total += sn.price;
+    });
+  });
+
+  // Build HTML panels
+  const psGridHTML = PS_UNITS.map(u => {
+    const group = psGroups[u.id];
+    const typeCls = u.type === 'PS4' ? 'badge-ps4' : 'badge-ps3';
+    const typeClsDim = u.type === 'PS4' ? 'badge-ps4-dim' : 'badge-ps3-dim';
+
+    if (group.list.length === 0) {
+      return `
+        <div class="report-ps-card idle">
+          <div class="report-ps-header">
+            <div class="report-ps-title">
+              <span class="table-badge ${typeClsDim}">${u.type}</span>
+              <span class="ps-num-dim">PS ${u.id}</span>
+            </div>
+            <div class="report-ps-revenue dim">
+              <span>Rp 0</span>
+              <span style="font-size:0.65rem;opacity:0.6">0 sesi</span>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    return `
+      <div class="report-ps-card active">
+        <div class="report-ps-header">
+          <div class="report-ps-title">
+            <span class="table-badge ${typeCls}">${u.type}</span>
+            <strong>PS ${u.id}</strong>
+          </div>
+          <div class="report-ps-revenue">
+            <span class="rev-total">${fmtRp(group.totalRev)}</span>
+            <span class="rev-count">${group.list.length} sesi selesai</span>
+          </div>
+        </div>
+        <div class="report-ps-body">
+          <div class="report-ps-breakdown">
+            <span>Waktu: ${fmtRp(group.totalTime)}</span>
+            <span>Jajanan: ${fmtRp(group.totalSnack)}</span>
+          </div>
+          <div class="report-ps-sessions-list">
+            ${group.list.map((s, idx) => {
+              const snackTot = s.snacks.reduce((x,y) => x+y.price, 0);
+              const total    = (s.price||0) + snackTot;
+              const pkg      = PACKAGES.find(p => p.minutes===s.packageMinutes)||{};
+              const closedTm = s.closedAt ? fmtTime(new Date(s.closedAt)) : '—';
+              const snackTxt = s.snacks.length > 0 
+                ? s.snacks.map(x => `• ${esc(x.name)} (${fmtRp(x.price)})`).join('<br>') 
+                : '—';
+              return `
+                <div class="report-session-item">
+                  <div class="session-item-row">
+                    <span class="session-index">Sesi #${group.list.length - idx}</span>
+                    <span class="session-time">🕒 ${s.startTime || '—'} - ${closedTm}</span>
+                  </div>
+                  <div class="session-item-row" style="margin-top:2px">
+                    <span>Pemain: ${s.players===1?'👤 1 (Sendiri)':'👥 2 (Berdua)'}</span>
+                    <span>Paket: <strong>${pkg.label||'—'}</strong></span>
+                  </div>
+                  ${s.note ? `<div class="session-item-row" style="color:var(--text-muted);font-size:0.72rem;margin-top:2px"><span>Note: ${esc(s.note)}</span></div>` : ''}
+                  ${s.snacks.length > 0 ? `<div class="session-item-snacks" style="margin-top:4px">${snackTxt}</div>` : ''}
+                  <div class="session-item-footer">
+                    <span class="session-total">Total: ${fmtRp(total)}</span>
+                    <button onclick="toggleReportPaid('${s.id}',${s.paid})" class="table-paid-badge ${s.paid?'paid':'unpaid'}" title="Klik untuk ubah status bayar">
+                      ${s.paid?'✓ Lunas':'⚠ Belum'}
+                    </button>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const snacksSummaryHTML = `
+    <div class="report-snacks-card">
+      <div class="report-snacks-header">
+        <strong>🍿 Ringkasan Penjualan Jajanan</strong>
+      </div>
+      <div class="report-snacks-body">
+        ${Object.keys(snackSummary).length === 0
+          ? '<p class="no-snacks">Tidak ada jajanan terjual hari ini.</p>'
+          : `
+            <div class="snack-summary-table">
+              <div class="snack-summary-row header">
+                <span>Nama Jajanan</span>
+                <span>Terjual</span>
+                <span>Total</span>
+              </div>
+              ${Object.entries(snackSummary).map(([name, data]) => `
+                <div class="snack-summary-row">
+                  <span>${esc(name)}</span>
+                  <span><strong>${data.count} pcs</strong></span>
+                  <span class="snack-summary-price">${fmtRp(data.total)}</span>
+                </div>`).join('')}
+            </div>`}
+      </div>
+    </div>`;
+
   document.getElementById('report-table-container').innerHTML = `
-    <div class="table-wrapper">
-      <table class="report-table">
-        <thead><tr><th>#</th><th>PS</th><th>Tipe</th><th>Pemain</th><th>Paket</th><th>Mulai</th><th>Tutup</th><th>Jajanan</th><th>Waktu</th><th>Total</th><th>Bayar</th></tr></thead>
-        <tbody>
-          ${filtered.map((s,i) => {
-            const snackTot = s.snacks.reduce((x,y) => x+y.price, 0);
-            const total    = (s.price||0) + snackTot;
-            const pkg      = PACKAGES.find(p => p.minutes===s.packageMinutes)||{};
-            const closedTm = s.closedAt ? fmtTime(new Date(s.closedAt)) : '—';
-            const snackTxt = s.snacks.length > 0 ? s.snacks.map(x=>`${esc(x.name)} (${fmtRp(x.price)})`).join('<br>') : '—';
-            return `<tr>
-              <td style="color:var(--text-dim)">${i+1}</td>
-              <td><strong>PS ${s.psId}</strong></td>
-              <td><span class="table-badge ${s.psType==='PS4'?'badge-ps4':'badge-ps3'}">${s.psType}</span></td>
-              <td>${s.players===1?'👤 1':'👥 2'}</td>
-              <td style="white-space:nowrap">${pkg.label||'—'}</td>
-              <td style="white-space:nowrap">${s.startTime||'—'}</td>
-              <td style="white-space:nowrap">${closedTm}</td>
-              <td class="snack-cell">${snackTxt}</td>
-              <td style="white-space:nowrap">${fmtRp(s.price||0)}</td>
-              <td style="white-space:nowrap"><strong>${fmtRp(total)}</strong></td>
-              <td onclick="toggleReportPaid('${s.id}',${s.paid})" style="cursor:pointer" title="Klik untuk ubah status bayar">
-                <span class="table-paid-badge ${s.paid?'paid':'unpaid'}">${s.paid?'✓ Lunas':'⚠ Belum'}</span>
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+    <div class="report-layout-grid">
+      <div>
+        <h3 class="report-section-title-sub">🎮 Laporan Per Unit PlayStation</h3>
+        <div class="report-ps-grid">${psGridHTML}</div>
+      </div>
+      <div>
+        <h3 class="report-section-title-sub">🍿 Inventori Jajanan</h3>
+        ${snacksSummaryHTML}
+      </div>
     </div>`;
 }
 
