@@ -22,6 +22,7 @@ const DEFAULT_PRICES = {
 };
 
 const PACKAGES = [
+  {label:'Biasa (Open Time)', minutes:0,   bonus:0},
   {label:'30 Menit',       minutes:30,  bonus:0},
   {label:'1 Jam',          minutes:60,  bonus:0},
   {label:'1 Jam 30 Menit', minutes:90,  bonus:0},
@@ -48,20 +49,49 @@ let _timerClockInterval = null; // live clock in start-timer modal
 
 const alertShown = {};
 
+// ===== ROUNDING HELPER =====
+// Rounds play duration to the nearest 30-minute interval.
+// If remainder minutes past a 30-minute mark is > 15 minutes, rounds up. Otherwise down.
+// Minimum rounding is 0 (if play time <= 15 minutes).
+function roundDuration(minutes) {
+  if (minutes <= 15) return 0;
+  const k = Math.floor(minutes / 30);
+  const r = minutes % 30;
+  return r > 15 ? (k + 1) * 30 : k * 30;
+}
+
 // ===== PRICE HELPER =====
-// 90min  = harga 1 Jam + harga 30 Menit (otomatis)
-// 150min = harga 2 Jam + harga 30 Menit (otomatis)
+// Decomposes any multiple of 30 minutes into a sum of standard prices (180, 120, 60, 30)
 function getPrice(psType, players, minutes) {
   const prices = priceSettings || DEFAULT_PRICES;
-  if (minutes === 90) {
-    return (prices[psType]?.[players]?.[60]  ?? 0)
-         + (prices[psType]?.[players]?.[30]  ?? 0);
+  const typePrices = prices[psType]?.[players] || {};
+
+  let remaining = minutes;
+  let totalPrice = 0;
+
+  // Greedy decomposition: 180, 120, 60, 30
+  if (remaining >= 180) {
+    const count = Math.floor(remaining / 180);
+    totalPrice += count * (typePrices[180] ?? 0);
+    remaining %= 180;
   }
-  if (minutes === 150) {
-    return (prices[psType]?.[players]?.[120] ?? 0)
-         + (prices[psType]?.[players]?.[30]  ?? 0);
+  if (remaining >= 120) {
+    const count = Math.floor(remaining / 120);
+    totalPrice += count * (typePrices[120] ?? 0);
+    remaining %= 120;
   }
-  return prices[psType]?.[players]?.[minutes] ?? 0;
+  if (remaining >= 60) {
+    const count = Math.floor(remaining / 60);
+    totalPrice += count * (typePrices[60] ?? 0);
+    remaining %= 60;
+  }
+  if (remaining >= 30) {
+    const count = Math.floor(remaining / 30);
+    totalPrice += count * (typePrices[30] ?? 0);
+    remaining %= 30;
+  }
+
+  return totalPrice;
 }
 
 // ===== INIT =====
@@ -379,13 +409,27 @@ function buildCompactCellHTML(unit, session) {
   }
 
   // ACTIVE
+  const isOpenTime = session.packageMinutes === 0;
   const now       = Date.now();
   const remaining = session.endTimestamp - now;
-  const expired   = remaining <= 0;
-  const warn5     = !expired && remaining <= 5  * 60 * 1000;
-  const near10    = !expired && remaining <= 10 * 60 * 1000;
-  const cellCls   = expired ? 's-expired' : warn5 ? 's-warning' : 's-active';
-  const timerTxt  = expired ? 'HABIS!' : fmtCountdown(remaining);
+  const expired   = !isOpenTime && remaining <= 0;
+  const warn5     = !isOpenTime && !expired && remaining <= 5  * 60 * 1000;
+  const near10    = !isOpenTime && !expired && remaining <= 10 * 60 * 1000;
+  
+  let cellCls   = 's-active';
+  let timerTxt  = '';
+  let statusTxt = '● AKTIF';
+
+  if (isOpenTime) {
+    const elapsed = now - (session.startTimestamp || now);
+    timerTxt  = fmtCountdown(elapsed);
+    statusTxt = '● LIVE';
+  } else {
+    cellCls   = expired ? 's-expired' : warn5 ? 's-warning' : 's-active';
+    timerTxt  = expired ? 'HABIS!' : fmtCountdown(remaining);
+    statusTxt = expired ? '⏰ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF';
+  }
+
   const paidDot   = `<span class="cell-paid-dot ${session.paid ? 'paid' : 'unpaid'}"></span>`;
 
   return `
@@ -394,7 +438,7 @@ function buildCompactCellHTML(unit, session) {
       <span class="cell-type-badge ${typeCls}">${unit.type}</span>
       <span class="cell-number">PS ${unit.id}</span>
       <span class="cell-timer" id="cell-timer-${unit.id}">${timerTxt}</span>
-      <span class="cell-status">${expired ? '⏰ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF'}</span>
+      <span class="cell-status">${statusTxt}</span>
     </button>`;
 }
 
@@ -407,22 +451,28 @@ function updateCompactCell(psId) {
   if (!session) { cell.className = 'ps-cell idle'; return; }
   if (session.status !== 'ACTIVE') return;
 
+  const isOpenTime = session.packageMinutes === 0;
   const now       = Date.now();
-  const remaining = session.endTimestamp - now;
-  const expired   = remaining <= 0;
-  const warn5     = !expired && remaining <= 5  * 60 * 1000;
-  const near10    = !expired && remaining <= 10 * 60 * 1000;
-
   const timerEl = document.getElementById(`cell-timer-${psId}`);
-  if (timerEl) timerEl.textContent = expired ? 'HABIS!' : fmtCountdown(remaining);
-
-  // Update status text
   const statusEl = cell.querySelector('.cell-status');
-  if (statusEl) {
-    statusEl.textContent = expired ? '⏰ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF';
-  }
 
-  cell.className = `ps-cell ${expired ? 's-expired' : warn5 ? 's-warning' : 's-active'}`;
+  if (isOpenTime) {
+    const elapsed = now - (session.startTimestamp || now);
+    if (timerEl) timerEl.textContent = fmtCountdown(elapsed);
+    if (statusEl) statusEl.textContent = '● LIVE';
+    cell.className = 'ps-cell s-active';
+  } else {
+    const remaining = session.endTimestamp - now;
+    const expired   = remaining <= 0;
+    const warn5     = !expired && remaining <= 5  * 60 * 1000;
+    const near10    = !expired && remaining <= 10 * 60 * 1000;
+
+    if (timerEl) timerEl.textContent = expired ? 'HABIS!' : fmtCountdown(remaining);
+    if (statusEl) {
+      statusEl.textContent = expired ? '⏰ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF';
+    }
+    cell.className = `ps-cell ${expired ? 's-expired' : warn5 ? 's-warning' : 's-active'}`;
+  }
 }
 
 function updateStats() {
@@ -485,10 +535,11 @@ function buildBottomSheetContent(psId) {
     statusHTML = '<span class="status-badge waiting">⏳ MENUNGGU</span>';
     bodyHTML   = buildWaitingSheetBody(psId, session);
   } else if (session.status === 'ACTIVE') {
+    const isOpenTime = session.packageMinutes === 0;
     const now       = Date.now();
     const remaining = session.endTimestamp - now;
-    const expired   = remaining <= 0;
-    const warn5     = !expired && remaining <= 5 * 60 * 1000;
+    const expired   = !isOpenTime && remaining <= 0;
+    const warn5     = !isOpenTime && !expired && remaining <= 5 * 60 * 1000;
     statusHTML = `<span class="status-badge ${(expired||warn5)?'timer-warning':'active'}">● AKTIF</span>`;
     bodyHTML   = buildActiveSheetBody(psId, session);
   }
@@ -522,17 +573,29 @@ function buildWaitingSheetBody(psId, session) {
 }
 
 function buildActiveSheetBody(psId, session) {
+  const isOpenTime = session.packageMinutes === 0;
   const now       = Date.now();
   const remaining = session.endTimestamp - now;
-  const expired   = remaining <= 0;
-  const warn5     = !expired && remaining <= 5  * 60 * 1000;
-  const near10    = !expired && remaining <= 10 * 60 * 1000;
-  const timerCls  = expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
-  const countdown = expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
+  const expired   = !isOpenTime && remaining <= 0;
+  const warn5     = !isOpenTime && !expired && remaining <= 5  * 60 * 1000;
+  const near10    = !isOpenTime && !expired && remaining <= 10 * 60 * 1000;
+  const timerCls  = isOpenTime ? '' : expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
+  const countdown = isOpenTime ? fmtCountdown(now - (session.startTimestamp || now)) : expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
   const pkg       = PACKAGES.find(p => p.minutes === session.packageMinutes) || {};
   const endDt     = new Date(session.endTimestamp);
+  const unit      = PS_UNITS.find(u => u.id === psId);
+
+  // Dynamic price calculation for Open Time
+  let timePrice = session.price;
+  if (isOpenTime) {
+    const elapsedMinutes = Math.floor((now - (session.startTimestamp || now)) / 60000);
+    const roundedMin = roundDuration(elapsedMinutes);
+    timePrice = getPrice(unit.type, session.players, roundedMin);
+    session.price = timePrice; // update in memory
+  }
+
   const snackTot  = session.snacks.reduce((s,x) => s + x.price, 0);
-  const total     = session.price + snackTot;
+  const total     = timePrice + snackTot;
   const paidCls   = session.paid ? 'paid' : 'unpaid';
   const paidTxt   = session.paid ? '✓ SUDAH BAYAR' : '⚠ BELUM BAYAR';
   const bonusTxt  = session.bonusMinutes > 0 ? `<span class="bonus-badge">🎁 +${session.bonusMinutes}min bonus</span>` : '';
@@ -561,12 +624,12 @@ function buildActiveSheetBody(psId, session) {
       <div class="timer-countdown" id="sheet-timer-${psId}">${countdown}</div>
       <div class="timer-sub">
         <span>Mulai: ${session.startTime}</span>
-        <span>Selesai: ${fmtTime(endDt)}</span>
+        ${isOpenTime ? `<span>Billing: Open Time</span>` : `<span>Selesai: ${fmtTime(endDt)}</span>`}
       </div>
     </div>
     ${snacksHTML}
     <div class="price-section">
-      <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(session.price)}</span></div>
+      <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(timePrice)}</span></div>
       ${snackTot>0?`<div class="price-row-mini"><span>Jajanan:</span><span>${fmtRp(snackTot)}</span></div>`:''}
       <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>
     </div>
@@ -589,20 +652,61 @@ function tickTimers() {
     const session = sessions[unit.id];
     if (!session || session.status !== 'ACTIVE') return;
 
-    const now       = Date.now();
-    const remaining = session.endTimestamp - now;
-    const expired   = remaining <= 0;
-    const warn5     = !expired && remaining <= 5  * 60 * 1000;
-    const near10    = !expired && remaining <= 10 * 60 * 1000;
+    const now        = Date.now();
+    const isOpenTime = session.packageMinutes === 0;
+
+    let timerTxt = '';
+    let timerCls = '';
+    let expired  = false;
+    let warn5    = false;
+    let near10   = false;
+
+    if (isOpenTime) {
+      const elapsed = now - (session.startTimestamp || now);
+      timerTxt = fmtCountdown(elapsed);
+      timerCls = '';
+      
+      // Calculate dynamic price
+      const elapsedMinutes = Math.floor(elapsed / 60000);
+      const roundedMin = roundDuration(elapsedMinutes);
+      const currentPrice = getPrice(unit.type, session.players, roundedMin);
+      session.price = currentPrice; // update in memory
+    } else {
+      const remaining = session.endTimestamp - now;
+      expired   = remaining <= 0;
+      warn5     = !expired && remaining <= 5  * 60 * 1000;
+      near10    = !expired && remaining <= 10 * 60 * 1000;
+      timerTxt  = expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
+      timerCls  = expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
+    }
 
     // Update desktop card timer
     const timerEl   = document.getElementById(`timer-${unit.id}`);
     const displayEl = document.getElementById(`timer-display-${unit.id}`);
     if (timerEl && displayEl) {
-      timerEl.textContent  = expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
-      displayEl.className  = `timer-display ${expired?'timer-expired':warn5?'timer-warning':near10?'timer-near':''}`;
+      timerEl.textContent  = timerTxt;
+      displayEl.className  = `timer-display ${timerCls}`;
       const badgeEl = document.getElementById(`ps-card-${unit.id}`)?.querySelector('.status-badge');
-      if (badgeEl) badgeEl.className = `status-badge ${(expired||warn5)?'timer-warning':'active'}`;
+      if (badgeEl) {
+        if (isOpenTime) {
+          badgeEl.className = 'status-badge active';
+        } else {
+          badgeEl.className = `status-badge ${(expired||warn5)?'timer-warning':'active'}`;
+        }
+      }
+      
+      // Update desktop price preview in real-time for Open Time
+      if (isOpenTime) {
+        const priceSect = document.getElementById(`price-sect-${unit.id}`);
+        if (priceSect) {
+          const snackTot = session.snacks.reduce((s,x) => s + x.price, 0);
+          const total = session.price + snackTot;
+          priceSect.innerHTML = `
+            <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(session.price)}</span></div>
+            ${snackTot>0?`<div class="price-row-mini"><span>Jajanan:</span><span>${fmtRp(snackTot)}</span></div>`:''}
+            <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>`;
+        }
+      }
     } else {
       needsRender = true;
     }
@@ -614,18 +718,36 @@ function tickTimers() {
     if (bottomSheetPsId === unit.id) {
       const sheetTimer = document.getElementById(`sheet-timer-${unit.id}`);
       const sheetDisp  = sheetTimer?.closest('.timer-display');
-      if (sheetTimer) sheetTimer.textContent = expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
-      if (sheetDisp)  sheetDisp.className = `timer-display ${expired?'timer-expired':warn5?'timer-warning':near10?'timer-near':''}`;
+      if (sheetTimer) sheetTimer.textContent = timerTxt;
+      if (sheetDisp)  sheetDisp.className = `timer-display ${timerCls}`;
+      
+      // Update bottom sheet price preview in real-time for Open Time
+      if (isOpenTime) {
+        const sheetBody = document.querySelector('#ps-bottom-sheet .sheet-body');
+        if (sheetBody) {
+          const priceSect = sheetBody.querySelector('.price-section');
+          if (priceSect) {
+            const snackTot = session.snacks.reduce((s,x) => s + x.price, 0);
+            const total = session.price + snackTot;
+            priceSect.innerHTML = `
+              <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(session.price)}</span></div>
+              ${snackTot>0?`<div class="price-row-mini"><span>Jajanan:</span><span>${fmtRp(snackTot)}</span></div>`:''}
+              <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>`;
+          }
+        }
+      }
     }
 
     // Alerts
-    if (!alertShown[unit.id]) alertShown[unit.id] = {};
-    if (expired && !alertShown[unit.id].expired) {
-      alertShown[unit.id].expired = true;
-      showNotification(`⏰ PS ${unit.id} — Waktu sudah HABIS!`, 'danger');
-    } else if (warn5 && !alertShown[unit.id].w5) {
-      alertShown[unit.id].w5 = true;
-      showNotification(`⚠️ PS ${unit.id} — Sisa waktu kurang dari 5 menit!`, 'warning');
+    if (!isOpenTime) {
+      if (!alertShown[unit.id]) alertShown[unit.id] = {};
+      if (expired && !alertShown[unit.id].expired) {
+        alertShown[unit.id].expired = true;
+        showNotification(`⏰ PS ${unit.id} — Waktu sudah HABIS!`, 'danger');
+      } else if (warn5 && !alertShown[unit.id].w5) {
+        alertShown[unit.id].w5 = true;
+        showNotification(`⚠️ PS ${unit.id} — Sisa waktu kurang dari 5 menit!`, 'warning');
+      }
     }
   });
   if (needsRender) renderDashboard();
@@ -745,7 +867,7 @@ function openStartTimerModal(psId) {
       <button class="package-btn" data-min="${pkg.minutes}" onclick="selectPackage(${pkg.minutes})">
         <span class="pkg-label">${pkg.label}</span>
         ${bonusTxt}
-        <span class="pkg-price">${fmtRp(price)}</span>
+        <span class="pkg-price">${pkg.minutes === 0 ? 'Sesuai Main' : fmtRp(price)}</span>
       </button>`;
   }).join('');
 
@@ -761,22 +883,29 @@ function selectPackage(minutes) {
 
   const session = sessions[_modalPsId];
   const unit    = PS_UNITS.find(u => u.id === _modalPsId);
-  const price   = getPrice(unit.type, session.players, minutes);
   const pkg     = PACKAGES.find(p => p.minutes === minutes);
+  const price   = getPrice(unit.type, session.players, minutes);
   const bonus   = pkg.bonus || 0;
   const total   = minutes + bonus;
 
   document.getElementById('price-preview').style.display = 'flex';
-  document.getElementById('preview-price').textContent   = fmtRp(price);
-  document.getElementById('bonus-row').style.display     = bonus > 0 ? 'flex' : 'none';
-  const h = Math.floor(total/60), m = total%60;
-  document.getElementById('preview-duration').textContent =
-    (h>0?`${h} jam `:'') + (m>0?`${m} menit`:'');
+  
+  if (minutes === 0) {
+    document.getElementById('preview-price').textContent   = 'Sesuai durasi main';
+    document.getElementById('bonus-row').style.display     = 'none';
+    document.getElementById('preview-duration').textContent = 'Open Time';
+  } else {
+    document.getElementById('preview-price').textContent   = fmtRp(price);
+    document.getElementById('bonus-row').style.display     = bonus > 0 ? 'flex' : 'none';
+    const h = Math.floor(total/60), m = total%60;
+    document.getElementById('preview-duration').textContent =
+      (h>0?`${h} jam `:'') + (m>0?`${m} menit`:'');
+  }
   document.getElementById('confirm-timer-btn').disabled = false;
 }
 
 async function confirmStartTimer() {
-  if (!_selectedPackage) return;
+  if (_selectedPackage === null) return;
   const psId    = _modalPsId;
   const session = sessions[psId];
   const unit    = PS_UNITS.find(u => u.id === psId);
@@ -791,7 +920,7 @@ async function confirmStartTimer() {
   const bonus        = pkg.bonus || 0;
   const totalMinutes = _selectedPackage + bonus;
   const price        = getPrice(unit.type, session.players, _selectedPackage);
-  const endTs        = startDate.getTime() + totalMinutes * 60 * 1000;
+  const endTs        = _selectedPackage === 0 ? null : (startDate.getTime() + totalMinutes * 60 * 1000);
 
   setBtnLoading('confirm-timer-btn', true);
 
@@ -810,7 +939,11 @@ async function confirmStartTimer() {
   closeModal('start-timer');
   renderDashboard();
   refreshBottomSheet();
-  showNotification(`Timer PS ${psId} dimulai! ${pkg.label}${bonus>0?' +30 mnt bonus':''}. Harga: ${fmtRp(price)}`, 'success');
+  
+  const notifMsg = _selectedPackage === 0 
+    ? `Timer PS ${psId} dimulai! Open Time (Billing Biasa)`
+    : `Timer PS ${psId} dimulai! ${pkg.label}${bonus>0?' +30 mnt bonus':''}. Harga: ${fmtRp(price)}`;
+  showNotification(notifMsg, 'success');
 }
 
 // ===== TOGGLE PAYMENT =====
@@ -968,11 +1101,20 @@ function openCloseSessionModal(psId) {
 
   const pkg      = PACKAGES.find(p => p.minutes === session.packageMinutes) || {};
   const snackTot = session.snacks.reduce((s,x) => s+x.price, 0);
-  const total    = (session.price||0) + snackTot;
-  const playerTx = session.players === 1 ? '1 Orang' : '2 Orang';
   const now      = Date.now();
   const em       = Math.max(0, Math.floor((now - (session.startTimestamp||now)) / 60000));
   const elapsedStr = em >= 60 ? `${Math.floor(em/60)} jam ${em%60} menit` : `${em} menit`;
+
+  // Calculate final dynamic price for Open Time when closing the session
+  let timePrice = session.price || 0;
+  if (session.packageMinutes === 0) {
+    const roundedMin = roundDuration(em);
+    timePrice = getPrice(unit.type, session.players, roundedMin);
+    session.price = timePrice; // update in memory
+  }
+
+  const total    = timePrice + snackTot;
+  const playerTx = session.players === 1 ? '1 Orang' : '2 Orang';
 
   const snackRows = session.snacks.length > 0 ? `
     <div class="summary-section">
@@ -1000,7 +1142,7 @@ function openCloseSessionModal(psId) {
       </div>
       ${snackRows}
       <div class="summary-section total-section">
-        <div class="summary-row"><span>Harga Waktu</span><span>${fmtRp(session.price||0)}</span></div>
+        <div class="summary-row"><span>Harga Waktu</span><span>${fmtRp(timePrice)}</span></div>
         ${snackTot>0?`<div class="summary-row"><span>Total Jajanan</span><span>${fmtRp(snackTot)}</span></div>`:''}
         <div class="summary-row grand-total"><span>TOTAL BAYAR</span><span>${fmtRp(total)}</span></div>
       </div>
@@ -1026,7 +1168,8 @@ async function confirmCloseSession() {
   setBtnLoading('confirm-close-btn', true);
 
   const { error } = await db.from('sessions').update({
-    status: 'DONE', paid, closed_at: new Date().toISOString()
+    status: 'DONE', paid, closed_at: new Date().toISOString(),
+    price: session.price
   }).eq('id', session.id).eq('user_id', currentUser.id);
 
   setBtnLoading('confirm-close-btn', false);
