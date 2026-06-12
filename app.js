@@ -761,6 +761,9 @@ function openOpenSessionModal(psId) {
   const unit = PS_UNITS.find(u => u.id === psId);
   document.getElementById('modal-open-title').textContent = `Buka Sesi PS ${psId} (${unit.type})`;
   document.getElementById('session-note').value = '';
+  // Reset pre-pay toggle
+  const prePaidToggle = document.getElementById('session-prepaid');
+  if (prePaidToggle) prePaidToggle.checked = false;
   _setPlayerBtns(1);
   showModal('open-session');
 }
@@ -781,10 +784,12 @@ async function confirmOpenSession() {
   const unit = PS_UNITS.find(u => u.id === psId);
   setBtnLoading('confirm-open-btn', true);
 
+  const prePaid = document.getElementById('session-prepaid')?.checked || false;
+
   const { data, error } = await db.from('sessions').insert({
     user_id: currentUser.id, ps_id: psId, ps_type: unit.type,
     players: _selectedPlayers, status: 'WAITING',
-    snacks: [], paid: false, note: note || null, opened_at: new Date().toISOString()
+    snacks: [], paid: prePaid, note: note || null, opened_at: new Date().toISOString()
   }).select().single();
 
   setBtnLoading('confirm-open-btn', false);
@@ -912,21 +917,20 @@ async function confirmStartTimer() {
   const timeStr = document.getElementById('start-time-input').value;
   if (!timeStr) { showNotification('Masukkan jam mulai!', 'warning'); return; }
 
-  const [hh, mm]  = timeStr.split(':').map(Number);
-  const startDate = new Date();
-  startDate.setHours(hh, mm, 0, 0);
-
   const pkg          = PACKAGES.find(p => p.minutes === _selectedPackage);
   const bonus        = pkg.bonus || 0;
   const totalMinutes = _selectedPackage + bonus;
   const price        = getPrice(unit.type, session.players, _selectedPackage);
-  const endTs        = _selectedPackage === 0 ? null : (startDate.getTime() + totalMinutes * 60 * 1000);
+
+  // Use Date.now() for accurate countdown (not parsed time which loses seconds)
+  const nowMs = Date.now();
+  const endTs = _selectedPackage === 0 ? null : (nowMs + totalMinutes * 60 * 1000);
 
   setBtnLoading('confirm-timer-btn', true);
 
   const { data, error } = await db.from('sessions').update({
     status: 'ACTIVE', start_time: timeStr,
-    start_timestamp: startDate.getTime(),
+    start_timestamp: nowMs,
     package_minutes: _selectedPackage, bonus_minutes: bonus,
     total_minutes: totalMinutes, end_timestamp: endTs, price
   }).eq('id', session.id).eq('user_id', currentUser.id).select().single();
@@ -1608,6 +1612,16 @@ function updateAdjustPreview() {
   const previewEl = document.getElementById('adjust-preview');
   const changeTxt = document.getElementById('adjust-change-txt');
   const newEndEl  = document.getElementById('adjust-new-end');
+
+  // Auto-calculate extra price when adding time
+  const extraPriceInput = document.getElementById('adjust-extra-price');
+  if (minutes > 0) {
+    const unit = PS_UNITS.find(u => u.id === _modalPsId);
+    const autoPrice = getPrice(unit.type, session.players, minutes);
+    extraPriceInput.value = autoPrice;
+  } else {
+    extraPriceInput.value = '0';
+  }
 
   if (minutes !== 0) {
     const newEndTs  = session.endTimestamp + (minutes * 60 * 1000);

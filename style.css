@@ -518,6 +518,16 @@ input[type="time"].form-input { font-family: var(--mono); font-size: 1.3rem; fon
 .paid-toggle-label { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 0.88rem; font-weight: 600; color: var(--text-muted); }
 .paid-toggle-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; }
 
+/* Toggle Switch */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: rgba(0,0,0,0.15); transition: var(--transition); gap: 12px; }
+.toggle-row:hover { border-color: var(--border-md); background: rgba(0,0,0,0.25); }
+.toggle-label-text { font-size: 0.88rem; font-weight: 600; color: var(--text-muted); }
+.toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-slider { position: relative; display: inline-block; width: 44px; height: 24px; min-width: 44px; background: rgba(255,255,255,0.1); border-radius: 24px; border: 1px solid var(--border); transition: var(--transition); }
+.toggle-slider::after { content: ''; position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--text-dim); transition: var(--transition); }
+.toggle-input:checked + .toggle-slider { background: var(--green); border-color: var(--green-border); }
+.toggle-input:checked + .toggle-slider::after { left: calc(100% - 20px); background: #fff; }
+
 /* ===== REPORTS ===== */
 .report-controls { display: flex; align-items: center; gap: 8px; }
 input[type="date"] { padding: 9px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-md); background: rgba(0,0,0,0.3); color: var(--text); font-family: var(--font); font-size: 0.88rem; outline: none; cursor: pointer; min-height: 44px; }

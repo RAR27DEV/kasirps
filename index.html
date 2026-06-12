@@ -248,6 +248,13 @@
           <label class="form-label" for="session-note">Catatan <span class="optional">(opsional)</span></label>
           <input type="text" id="session-note" class="form-input" placeholder="Nama pelanggan, dll...">
         </div>
+        <div class="form-group">
+          <label class="toggle-row" for="session-prepaid">
+            <span class="toggle-label-text">💰 Sudah Bayar Di Awal</span>
+            <input type="checkbox" id="session-prepaid" class="toggle-input">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn-ghost" onclick="closeModal('open-session')">Batal</button>
@@ -447,10 +454,10 @@
         </div>
         <!-- Extra charge -->
         <div class="form-group">
-          <label class="form-label">Biaya Tambahan (Rp) <span class="optional">opsional</span></label>
+          <label class="form-label">Biaya Tambahan (Rp) <span class="optional">otomatis dihitung</span></label>
           <input type="number" id="adjust-extra-price" class="form-input"
             placeholder="0 = tidak ada biaya tambahan" min="0" step="500" inputmode="numeric" value="0">
-          <small class="form-hint">Isi jika ada biaya tambahan untuk perpanjangan waktu</small>
+          <small class="form-hint">Harga dihitung otomatis saat menambah waktu. Bisa diedit manual.</small>
         </div>
       </div>
       <div class="modal-footer">
