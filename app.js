@@ -107,6 +107,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const { data: { session } } = await db.auth.getSession();
   if (!session) { hideLoading(); showAuthPage(); }
+
+  // Offline / Online listeners
+  window.addEventListener('offline', () => {
+    const ind = document.getElementById('offline-indicator');
+    if (ind) ind.classList.remove('hidden');
+  });
+  window.addEventListener('online', () => {
+    const ind = document.getElementById('offline-indicator');
+    if (ind) ind.classList.add('hidden');
+  });
+
+  // Warn before closing if there are active sessions
+  window.addEventListener('beforeunload', (e) => {
+    const activeCount = Object.values(sessions).filter(s => s.status === 'ACTIVE').length;
+    if (activeCount > 0) {
+      e.preventDefault();
+      e.returnValue = ''; // Standard way to show default browser warning
+    }
+  });
 });
 
 async function onSignedIn() {

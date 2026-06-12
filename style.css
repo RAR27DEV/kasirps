@@ -201,6 +201,13 @@ input, textarea { font-family: var(--font); }
 .dot-idle { background: var(--text-dim); }
 @keyframes pulseDot { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)} }
 
+/* ===== OFFLINE INDICATOR ===== */
+.offline-indicator {
+  background: var(--red); color: white; text-align: center; font-size: 0.85rem;
+  font-weight: 700; padding: 6px 10px; z-index: 1000;
+  position: sticky; top: 0; left: 0; right: 0; letter-spacing: 0.02em;
+}
+.offline-indicator.hidden { display: none; }
 /* ===== COMPACT GRID (Mobile) ===== */
 .ps-compact-grid {
   display: none; /* hidden on desktop */
