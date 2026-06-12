@@ -330,12 +330,17 @@ input, textarea { font-family: var(--font); }
 .sheet-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
 
 /* Sheet action buttons */
-.sheet-actions { display: flex; flex-direction: column; gap: 8px; }
+.sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sheet-actions .btn-start-timer,
 .sheet-actions .btn-snack,
 .sheet-actions .btn-pay,
+.sheet-actions .btn-adjust-time,
+.sheet-actions .btn-cancel { font-size: 0.85rem; min-height: 48px; }
+
+/* Make Tutup Sesi and Mulai Timer full width */
 .sheet-actions .btn-close-session,
-.sheet-actions .btn-cancel { font-size: 0.9rem; min-height: 52px; }
+.sheet-actions .btn-start-timer,
+.sheet-actions .btn-cancel { grid-column: 1 / -1; font-size: 0.9rem; min-height: 52px; }
 
 /* ===== PS GRID (Desktop) ===== */
 .ps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
@@ -387,7 +392,7 @@ input, textarea { font-family: var(--font); }
 @keyframes expiredPulse { 0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.8;transform:scale(0.99)} }
 .snacks-section { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
 .snacks-header { padding: 6px 11px; font-size: 0.73rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); text-transform: uppercase; letter-spacing: 0.05em; }
-.snacks-list { padding: 5px; display: flex; flex-direction: column; gap: 3px; }
+.snacks-list { padding: 5px; display: flex; flex-direction: column; gap: 3px; max-height: 160px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; background: rgba(0,0,0,0.2); }
 .snack-item { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 5px; background: rgba(255,255,255,0.03); }
 .snack-name { font-size: 0.78rem; flex: 1; }
 .snack-price { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
@@ -479,7 +484,7 @@ input[type="time"].form-input { font-family: var(--mono); font-size: 1.3rem; fon
 
 /* ===== PACKAGE GRID ===== */
 .package-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.package-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 14px 8px; border-radius: var(--radius); border: 2px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text-muted); transition: var(--transition); min-height: 80px; }
+.package-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 10px 6px; border-radius: var(--radius); border: 2px solid var(--border); background: rgba(255,255,255,0.03); color: var(--text-muted); transition: var(--transition); min-height: 65px; }
 .package-btn:hover,.package-btn.active { border-color: var(--ps4); background: var(--ps4-bg); }
 .package-btn.active { color: var(--ps4); box-shadow: 0 0 14px var(--ps4-glow); }
 .pkg-label { font-size: 0.88rem; font-weight: 700; color: var(--text); }
@@ -935,7 +940,7 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 .btn-adjust-time:hover { background: rgba(96,165,250,0.16); border-color: rgba(96,165,250,0.4); }
 .btn-adjust-time:active { transform: scale(0.98); }
 /* Also apply in sheet-actions */
-.sheet-actions .btn-adjust-time { font-size: 0.9rem; min-height: 52px; }
+.sheet-actions .btn-adjust-time { font-size: 0.85rem; min-height: 48px; }
 
 /* ===== ADJUST TIME MODAL ===== */
 .adjust-current-box {
