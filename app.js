@@ -1009,34 +1009,149 @@ async function togglePayment(psId) {
 }
 
 // ===== SNACK MODAL =====
+// Cart state: { [name]: { name, price, qty } }
+let _snackCart = {};
+
 function openSnackModal(psId) {
   _modalPsId = psId;
+  _snackCart = {};
   document.getElementById('modal-snack-title').textContent = `🍿 Tambah Jajanan — PS ${psId}`;
   document.getElementById('manual-snack-name').value  = '';
   document.getElementById('manual-snack-price').value = '';
+  document.getElementById('manual-snack-qty').value   = '1';
   document.getElementById('snack-added-list').innerHTML = '';
-
-  const menuEl = document.getElementById('snack-menu-items');
-  menuEl.innerHTML = snackMenu.length === 0
-    ? '<p class="empty-menu">Belum ada menu. Tambah di halaman Pengaturan.</p>'
-    : snackMenu.map(item => `
-        <button class="menu-snack-btn" onclick="quickAddSnack('${esc(item.name)}',${item.price})">
-          <span>${esc(item.name)}</span>
-          <span class="menu-snack-price">${fmtRp(item.price)}</span>
-        </button>`).join('');
-
+  _renderSnackMenuGrid();
+  _renderSnackCart();
   showModal('snack');
 }
 
-async function quickAddSnack(name, price) { await _doAddSnack(_modalPsId, name, price); }
+function _renderSnackMenuGrid() {
+  const menuEl = document.getElementById('snack-menu-items');
+  if (snackMenu.length === 0) {
+    menuEl.innerHTML = '<p class="empty-menu">Belum ada menu. Tambah di halaman Pengaturan.</p>';
+    return;
+  }
+  menuEl.innerHTML = snackMenu.map(item => {
+    const cartItem = _snackCart[item.name];
+    const qty      = cartItem ? cartItem.qty : 0;
+    const hasQty   = qty > 0;
+    return `
+      <div class="menu-snack-card ${hasQty ? 'in-cart' : ''}" id="snack-card-${CSS.escape(item.name)}">
+        <div class="menu-snack-info">
+          <span class="menu-snack-name">${esc(item.name)}</span>
+          <span class="menu-snack-price">${fmtRp(item.price)}</span>
+        </div>
+        <div class="menu-snack-controls">
+          ${hasQty ? `
+            <button class="snack-qty-btn minus" onclick="changeSnackQty('${esc(item.name)}',${item.price},-1)">−</button>
+            <span class="snack-qty-val">${qty}</span>
+          ` : ''}
+          <button class="snack-qty-btn plus" onclick="changeSnackQty('${esc(item.name)}',${item.price},1)">＋</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function changeSnackQty(name, price, delta) {
+  if (!_snackCart[name]) _snackCart[name] = { name, price, qty: 0 };
+  _snackCart[name].qty = Math.max(0, _snackCart[name].qty + delta);
+  if (_snackCart[name].qty === 0) delete _snackCart[name];
+  _renderSnackMenuGrid();
+  _renderSnackCart();
+}
+
+function _renderSnackCart() {
+  const cartKeys  = Object.keys(_snackCart);
+  const hasItems  = cartKeys.length > 0;
+  const summaryEl = document.getElementById('snack-cart-summary');
+  const cartBtn   = document.getElementById('confirm-snack-cart-btn');
+
+  summaryEl.classList.toggle('hidden', !hasItems);
+  cartBtn.style.display = hasItems ? '' : 'none';
+
+  if (!hasItems) { document.getElementById('snack-cart-list').innerHTML = ''; return; }
+
+  let total = 0;
+  const rows = cartKeys.map(k => {
+    const it = _snackCart[k];
+    total += it.price * it.qty;
+    return `<div class="snack-cart-row">
+      <span>${esc(it.name)} ×${it.qty}</span>
+      <span>${fmtRp(it.price * it.qty)}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('snack-cart-list').innerHTML  = rows;
+  document.getElementById('snack-cart-total').textContent = fmtRp(total);
+}
+
+async function confirmSnackCart() {
+  const cartKeys = Object.keys(_snackCart);
+  if (cartKeys.length === 0) return;
+
+  setBtnLoading('confirm-snack-cart-btn', true);
+  const session = sessions[_modalPsId];
+  if (!session) return;
+
+  // Build array of snacks (one entry per unit, not grouped)
+  const newItems = cartKeys.flatMap(k => {
+    const it = _snackCart[k];
+    return Array.from({ length: it.qty }, () => ({ name: it.name, price: it.price }));
+  });
+  const newSnacks = [...session.snacks, ...newItems];
+
+  const { data, error } = await db.from('sessions').update({ snacks: newSnacks })
+    .eq('id', session.id).eq('user_id', currentUser.id).select().single();
+
+  setBtnLoading('confirm-snack-cart-btn', false);
+  if (error) { showNotification('Gagal tambah jajanan: ' + error.message, 'danger'); return; }
+
+  session.snacks = data.snacks;
+  _refreshCardSnacks(_modalPsId);
+  refreshBottomSheet();
+
+  const summary = cartKeys.map(k => `${_snackCart[k].name} x${_snackCart[k].qty}`).join(', ');
+  showNotification(`Ditambahkan: ${summary}`, 'success');
+
+  // Reset cart
+  _snackCart = {};
+  _renderSnackMenuGrid();
+  _renderSnackCart();
+}
 
 async function confirmAddSnack() {
   const name  = document.getElementById('manual-snack-name').value.trim();
   const price = parseInt(document.getElementById('manual-snack-price').value) || 0;
+  const qty   = Math.max(1, parseInt(document.getElementById('manual-snack-qty').value) || 1);
   if (!name) { showNotification('Masukkan nama jajanan!', 'warning'); return; }
-  await _doAddSnack(_modalPsId, name, price);
+
+  setBtnLoading('add-snack-btn', true);
+  const session   = sessions[_modalPsId];
+  const newItems  = Array.from({ length: qty }, () => ({ name, price }));
+  const newSnacks = [...session.snacks, ...newItems];
+
+  const { data, error } = await db.from('sessions').update({ snacks: newSnacks })
+    .eq('id', session.id).eq('user_id', currentUser.id).select().single();
+
+  setBtnLoading('add-snack-btn', false);
+  if (error) { showNotification('Gagal tambah jajanan: ' + error.message, 'danger'); return; }
+
+  session.snacks = data.snacks;
+
+  const addedList = document.getElementById('snack-added-list');
+  if (addedList) {
+    const item = document.createElement('div');
+    item.className = 'snack-added-item';
+    item.textContent = `✓ ${name} x${qty} — ${fmtRp(price * qty)}`;
+    addedList.appendChild(item);
+  }
+
+  _refreshCardSnacks(_modalPsId);
+  refreshBottomSheet();
+  showNotification(`${name} x${qty} ditambahkan ke PS ${_modalPsId}`, 'success');
   document.getElementById('manual-snack-name').value  = '';
   document.getElementById('manual-snack-price').value = '';
+  document.getElementById('manual-snack-qty').value   = '1';
 }
 
 async function _doAddSnack(psId, name, price) {

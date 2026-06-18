@@ -313,9 +313,19 @@
         <button class="modal-close" onclick="closeModal('snack')">✕</button>
       </div>
       <div class="modal-body">
+        <!-- Menu grid with qty counters -->
         <div class="form-group">
           <label class="form-label">Pilih dari Menu</label>
           <div id="snack-menu-items" class="snack-menu-grid"></div>
+        </div>
+        <!-- Cart summary -->
+        <div id="snack-cart-summary" class="snack-cart-summary hidden">
+          <div class="snack-cart-title">🛒 Pesanan</div>
+          <div id="snack-cart-list" class="snack-cart-list"></div>
+          <div class="snack-cart-total-row">
+            <span>Total</span>
+            <span id="snack-cart-total" class="snack-cart-total-val">Rp 0</span>
+          </div>
         </div>
         <div class="divider-row">
           <span class="divider-line"></span><span class="divider-text">atau input manual</span><span class="divider-line"></span>
@@ -325,18 +335,25 @@
             <label class="form-label">Nama Jajanan</label>
             <input type="text" id="manual-snack-name" class="form-input" placeholder="Chitato, Aqua, dll...">
           </div>
-          <div class="form-group" style="width:130px;flex-shrink:0">
+          <div class="form-group" style="width:110px;flex-shrink:0">
             <label class="form-label">Harga (Rp)</label>
             <input type="number" id="manual-snack-price" class="form-input" placeholder="5000" min="0" step="500" inputmode="numeric">
           </div>
+          <div class="form-group" style="width:64px;flex-shrink:0">
+            <label class="form-label">Qty</label>
+            <input type="number" id="manual-snack-qty" class="form-input" placeholder="1" min="1" max="99" value="1" inputmode="numeric">
+          </div>
         </div>
         <button class="btn-primary btn-full" id="add-snack-btn" onclick="confirmAddSnack()">
-          <span class="btn-text">+ Tambah Jajanan</span><span class="btn-spin hidden">⏳</span>
+          <span class="btn-text">+ Tambah Manual</span><span class="btn-spin hidden">⏳</span>
         </button>
         <div id="snack-added-list" class="snack-added-list"></div>
       </div>
       <div class="modal-footer">
         <button class="btn-ghost" onclick="closeModal('snack')">Selesai</button>
+        <button class="btn-success" id="confirm-snack-cart-btn" onclick="confirmSnackCart()" style="display:none">
+          <span class="btn-text">✓ Pesan Semua</span><span class="btn-spin hidden">⏳</span>
+        </button>
       </div>
     </div>
   </div>
