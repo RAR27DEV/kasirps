@@ -100,28 +100,37 @@
     <header id="header">
       <div class="header-left">
         <div class="logo">
-          <span class="logo-icon">🎮</span>
+          <span class="material-symbols-outlined logo-icon" style="color:#60a5fa">sports_esports</span>
           <div class="logo-text">
-            <span class="store-name">Kasir PS</span>
-            <span class="store-sub">Rental PlayStation</span>
+            <span class="store-name">KASIR PS</span>
+            <span class="store-sub">Night-Ops System</span>
           </div>
         </div>
       </div>
       <div class="header-center">
         <div id="live-clock" class="live-clock">
+          <span class="material-symbols-outlined clock-icon">schedule</span>
           <span class="clock-time">--:--:--</span>
           <span class="clock-date">Memuat...</span>
         </div>
       </div>
       <div class="header-right">
         <nav class="nav-tabs">
-          <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')"><span class="nav-icon">🖥️</span><span>Dashboard</span></button>
-          <button class="nav-btn" id="nav-reports" onclick="showPage('reports')"><span class="nav-icon">📊</span><span>Laporan</span></button>
-          <button class="nav-btn" id="nav-settings" onclick="showPage('settings')"><span class="nav-icon">⚙️</span><span>Pengaturan</span></button>
+          <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')">
+            <span class="material-symbols-outlined nav-icon">dashboard</span><span>Dashboard</span>
+          </button>
+          <button class="nav-btn" id="nav-reports" onclick="showPage('reports')">
+            <span class="material-symbols-outlined nav-icon">bar_chart</span><span>Laporan</span>
+          </button>
+          <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">
+            <span class="material-symbols-outlined nav-icon">settings</span><span>Pengaturan</span>
+          </button>
         </nav>
         <div class="header-user">
           <span class="user-email-badge" id="user-email-badge">👤</span>
-          <button class="btn-logout-header" onclick="doLogout()" title="Keluar">🚪</button>
+          <button class="btn-logout-header" onclick="doLogout()" title="Keluar">
+            <span class="material-symbols-outlined" style="font-size:1.1rem;vertical-align:middle">logout</span>
+          </button>
         </div>
       </div>
     </header>
@@ -201,16 +210,16 @@
     <!-- BOTTOM NAVIGATION (Mobile) -->
     <nav id="bottom-nav">
       <button class="bnav-btn active" id="bnav-dashboard" onclick="showPage('dashboard')">
-        <span class="bnav-icon">🖥️</span><span class="bnav-label">Dashboard</span>
+        <span class="material-symbols-outlined bnav-icon">dashboard</span><span class="bnav-label">Dashboard</span>
       </button>
       <button class="bnav-btn" id="bnav-reports" onclick="showPage('reports')">
-        <span class="bnav-icon">📊</span><span class="bnav-label">Laporan</span>
+        <span class="material-symbols-outlined bnav-icon">bar_chart</span><span class="bnav-label">Laporan</span>
       </button>
       <button class="bnav-btn" id="bnav-settings" onclick="showPage('settings')">
-        <span class="bnav-icon">⚙️</span><span class="bnav-label">Pengaturan</span>
+        <span class="material-symbols-outlined bnav-icon">settings</span><span class="bnav-label">Pengaturan</span>
       </button>
       <button class="bnav-btn bnav-logout" onclick="doLogout()">
-        <span class="bnav-icon">🚪</span><span class="bnav-label">Keluar</span>
+        <span class="material-symbols-outlined bnav-icon">logout</span><span class="bnav-label">Keluar</span>
       </button>
     </nav>
 

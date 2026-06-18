@@ -598,10 +598,13 @@ function buildActiveSheetBody(psId, session) {
   const expired   = !isOpenTime && remaining <= 0;
   const warn5     = !isOpenTime && !expired && remaining <= 5  * 60 * 1000;
   const near10    = !isOpenTime && !expired && remaining <= 10 * 60 * 1000;
-  const timerCls  = isOpenTime ? '' : expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
-  const countdown = isOpenTime ? fmtCountdown(now - (session.startTimestamp || now)) : expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
+  
+  let timerColor  = expired ? '#EF4444' : near10 ? '#F59E0B' : '#10B981';
+  if (isOpenTime) timerColor = '#10B981';
+  
+  const countdown = isOpenTime ? fmtCountdown(now - (session.startTimestamp || now)) : expired ? '00:00:00' : fmtCountdown(remaining);
   const pkg       = PACKAGES.find(p => p.minutes === session.packageMinutes) || {};
-  const endDt     = new Date(session.endTimestamp);
+  const endDt     = session.endTimestamp ? new Date(session.endTimestamp) : null;
   const unit      = PS_UNITS.find(u => u.id === psId);
 
   // Dynamic price calculation for Open Time
@@ -615,49 +618,79 @@ function buildActiveSheetBody(psId, session) {
 
   const snackTot  = session.snacks.reduce((s,x) => s + x.price, 0);
   const total     = timePrice + snackTot;
-  const paidCls   = session.paid ? 'paid' : 'unpaid';
-  const paidTxt   = session.paid ? '✓ SUDAH BAYAR' : '⚠ BELUM BAYAR';
-  const bonusTxt  = session.bonusMinutes > 0 ? `<span class="bonus-badge">🎁 +${session.bonusMinutes}min bonus</span>` : '';
 
-  const snacksHTML = session.snacks.length > 0 ? `
-    <div class="snacks-section">
-      <div class="snacks-header">🍿 Jajanan</div>
-      <div class="snacks-list">
-        ${session.snacks.map((s,i) => `
-          <div class="snack-item">
-            <span class="snack-name">${esc(s.name)}</span>
-            <span class="snack-price">${fmtRp(s.price)}</span>
-            <button class="snack-remove" onclick="removeSnack(${psId},${i})">✕</button>
-          </div>`).join('')}
-      </div>
-    </div>` : '';
+  // Group snacks by name and count quantities for cleaner summary
+  const snackCounts = {};
+  session.snacks.forEach(s => {
+    if (!snackCounts[s.name]) snackCounts[s.name] = { count: 0, price: s.price };
+    snackCounts[s.name].count++;
+  });
+  const groupedSnacks = Object.keys(snackCounts).map(name => {
+    const s = snackCounts[name];
+    return { name, count: s.count, total: s.count * s.price };
+  });
+
+  const snacksHTML = groupedSnacks.length > 0 ? groupedSnacks.map(s => `
+    <div class="noc-billing-row">
+      <span>Snacks (${esc(s.name)} x${s.count})</span>
+      <span>${fmtRp(s.total)}</span>
+    </div>
+  `).join('') : '';
+
+  const timerLabel = isOpenTime ? 'ELAPSED TIME' : expired ? 'WAKTU HABIS' : 'TIME REMAINING';
 
   return `
-    <div class="session-meta">
-      <span class="meta-badge player-badge">${session.players===1?'👤 1 Orang':'👥 2 Orang'}</span>
-      <span class="meta-badge package-badge">${pkg.label||'—'}</span>
-      ${bonusTxt}
+    <span class="sheet-meta-times">Started ${session.startTime} ${endDt ? `• Ends ${fmtTime(endDt)}` : '• Open Time'}</span>
+    
+    <div class="noc-timer-box" style="border-color:${timerColor}40;background:rgba(${expired?'239,68,68':'16,185,129'},0.05);margin-top:8px">
+      <div class="noc-timer-label">${timerLabel}</div>
+      <div class="noc-timer-digits" id="sheet-timer-${psId}" style="color:${timerColor}">${countdown}</div>
     </div>
-    ${session.note ? `<div class="session-note">📝 ${esc(session.note)}</div>` : ''}
-    <div class="timer-display ${timerCls}">
-      <div class="timer-countdown" id="sheet-timer-${psId}">${countdown}</div>
-      <div class="timer-sub">
-        <span>Mulai: ${session.startTime}</span>
-        ${isOpenTime ? `<span>Billing: Open Time</span>` : `<span>Selesai: ${fmtTime(endDt)}</span>`}
+
+    <div class="sheet-actions-3col">
+      <button class="noc-btn-ghost" onclick="openAdjustTimeModal(${psId})">
+        <span class="material-symbols-outlined" style="font-size:1.1rem;margin-bottom:4px;display:block">more_time</span>
+        Adjust Time
+      </button>
+      <button class="noc-btn-ghost" onclick="openSnackModal(${psId})">
+        <span class="material-symbols-outlined" style="font-size:1.1rem;margin-bottom:4px;display:block">fastfood</span>
+        Add Snacks
+      </button>
+      <button class="noc-btn-ghost" onclick="askCancelSession(${psId})" style="color:var(--orange)">
+        <span class="material-symbols-outlined" style="font-size:1.1rem;margin-bottom:4px;display:block">cancel</span>
+        Batalkan
+      </button>
+    </div>
+
+    <div class="noc-billing-summary">
+      <div class="noc-billing-header">BILLING SUMMARY</div>
+      <div class="noc-billing-row">
+        <span>Rental (${isOpenTime ? 'Open Time' : pkg.label})</span>
+        <span>${fmtRp(timePrice)}</span>
+      </div>
+      ${snacksHTML}
+      <div class="noc-billing-total">
+        <span>Total</span>
+        <span style="color:${expired?'#EF4444':'inherit'}">${fmtRp(total)}</span>
       </div>
     </div>
-    ${snacksHTML}
-    <div class="price-section">
-      <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(timePrice)}</span></div>
-      ${snackTot>0?`<div class="price-row-mini"><span>Jajanan:</span><span>${fmtRp(snackTot)}</span></div>`:''}
-      <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>
+
+    <div class="noc-payment-status">
+      <div class="noc-payment-info">
+        <span class="noc-payment-title">Payment Status</span>
+        <span class="noc-payment-desc">Mark session as paid</span>
+      </div>
+      <label class="noc-switch">
+        <input type="checkbox" id="sheet-pay-btn-${psId}" ${session.paid ? 'checked' : ''} onchange="togglePayment(${psId})">
+        <span class="noc-slider"></span>
+      </label>
     </div>
-    <div class="sheet-actions">
-      <button class="btn-adjust-time" onclick="openAdjustTimeModal(${psId})">⏱️ Tambah / Kurangi Waktu</button>
-      <button class="btn-snack" onclick="openSnackModal(${psId})">🍿 Tambah Jajanan</button>
-      <button class="btn-pay ${paidCls}" id="sheet-pay-btn-${psId}" onclick="togglePayment(${psId})">${paidTxt}</button>
-      <button class="btn-close-session" onclick="openCloseSessionModal(${psId})">❌ Tutup Sesi</button>
-    </div>`;
+
+    <button class="noc-btn-danger" style="margin-top:8px" onclick="openCloseSessionModal(${psId})">
+      <span class="material-symbols-outlined" style="font-size:1.1rem;vertical-align:middle">stop_circle</span>
+      Tutup Sesi
+    </button>
+  `;
 }
 
 // ===== TIMER LOOP =====
@@ -699,11 +732,25 @@ function tickTimers() {
       timerCls  = expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
     }
 
-    // Update desktop card timer
+    // Update desktop card timer — Night-Ops uses #timer-{id} inside .noc-timer-digits
     const timerEl   = document.getElementById(`timer-${unit.id}`);
-    const displayEl = document.getElementById(`timer-display-${unit.id}`);
-    if (timerEl && displayEl) {
-      timerEl.textContent  = timerTxt;
+    const displayEl = document.getElementById(`timer-display-${unit.id}`);  // old compat
+    if (timerEl) {
+      timerEl.textContent = timerTxt;
+      // Update color for NOC card
+      const nocColor = expired ? '#EF4444' : warn5 ? '#F97316' : near10 ? '#F59E0B' : '#10B981';
+      if (timerEl.classList.contains('noc-timer-digits')) {
+        timerEl.style.color = isOpenTime ? '#10B981' : nocColor;
+        // Update status chip
+        const card = document.getElementById(`ps-card-${unit.id}`);
+        const chip = card?.querySelector('.noc-status-chip');
+        if (chip) {
+          chip.className = `noc-status-chip ${expired ? 'noc-expired' : near10 ? 'noc-warning' : 'noc-active'}`;
+          chip.textContent = expired ? '⚠ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF';
+        }
+      }
+    }
+    if (displayEl) {
       displayEl.className  = `timer-display ${timerCls}`;
       const badgeEl = document.getElementById(`ps-card-${unit.id}`)?.querySelector('.status-badge');
       if (badgeEl) {
@@ -713,7 +760,10 @@ function tickTimers() {
           badgeEl.className = `status-badge ${(expired||warn5)?'timer-warning':'active'}`;
         }
       }
-      
+    }
+
+    if (!timerEl) { needsRender = true; }
+
       // Update desktop price preview in real-time for Open Time
       if (isOpenTime) {
         const priceSect = document.getElementById(`price-sect-${unit.id}`);
@@ -726,9 +776,7 @@ function tickTimers() {
             <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>`;
         }
       }
-    } else {
-      needsRender = true;
-    }
+
 
     // Update compact cell timer
     updateCompactCell(unit.id);
@@ -1497,12 +1545,35 @@ async function renderReports() {
 
   document.getElementById('report-summary').innerHTML = `
     <div class="summary-cards-grid">
-      <div class="summary-stat-card green"><div class="summary-stat-label">Total Sesi</div><div class="summary-stat-value">${filtered.length} sesi</div></div>
-      <div class="summary-stat-card blue"><div class="summary-stat-label">Total Pendapatan</div><div class="summary-stat-value">${fmtRp(totalRev)}</div></div>
-      <div class="summary-stat-card purple"><div class="summary-stat-label">Dari Waktu</div><div class="summary-stat-value">${fmtRp(timeRev)}</div></div>
-      <div class="summary-stat-card orange"><div class="summary-stat-label">Dari Jajanan</div><div class="summary-stat-value">${fmtRp(snackRev)}</div></div>
-      <div class="summary-stat-card teal"><div class="summary-stat-label">Sudah Dibayar</div><div class="summary-stat-value">${fmtRp(totalPaid)}</div></div>
-      <div class="summary-stat-card red"><div class="summary-stat-label">Belum Dibayar</div><div class="summary-stat-value">${fmtRp(totalRev-totalPaid)}</div></div>
+      <div class="noc-summary-card blue">
+        <div class="noc-summary-icon material-symbols-outlined">payments</div>
+        <div class="noc-summary-body">
+          <div class="noc-summary-label">TOTAL PENDAPATAN</div>
+          <div class="noc-summary-value">${fmtRp(totalRev)}</div>
+        </div>
+      </div>
+      <div class="noc-summary-card green">
+        <div class="noc-summary-icon material-symbols-outlined">videogame_asset</div>
+        <div class="noc-summary-body">
+          <div class="noc-summary-label">DARI WAKTU RENTAL</div>
+          <div class="noc-summary-value">${fmtRp(timeRev)}</div>
+          <div class="noc-summary-sub">${filtered.length} sesi selesai</div>
+        </div>
+      </div>
+      <div class="noc-summary-card orange">
+        <div class="noc-summary-icon material-symbols-outlined">fastfood</div>
+        <div class="noc-summary-body">
+          <div class="noc-summary-label">DARI JAJANAN</div>
+          <div class="noc-summary-value">${fmtRp(snackRev)}</div>
+        </div>
+      </div>
+      <div class="noc-summary-card ${totalRev - totalPaid > 0 ? 'red' : 'teal'}">
+        <div class="noc-summary-icon material-symbols-outlined">${totalRev - totalPaid > 0 ? 'warning' : 'check_circle'}</div>
+        <div class="noc-summary-body">
+          <div class="noc-summary-label">${totalRev - totalPaid > 0 ? 'BELUM DIBAYAR' : 'SEMUA LUNAS'}</div>
+          <div class="noc-summary-value">${fmtRp(totalRev - totalPaid > 0 ? totalRev - totalPaid : totalPaid)}</div>
+        </div>
+      </div>
     </div>`;
 
   if (filtered.length === 0) {
@@ -1826,102 +1897,131 @@ async function toggleReportPaid(sessionId, currentPaid) {
 
 // ===== DESKTOP CARD HTML (unchanged for desktop) =====
 function buildCardHTML(unit, session) {
-  const typeClass = unit.type === 'PS4' ? 'badge-ps4' : 'badge-ps3';
-  const cardStatus = session ? session.status.toLowerCase() : 'idle';
-  let statusBadge = '', cardBody = '';
+  const isPS4     = unit.type === 'PS4';
+  const badgeColor = isPS4 ? '#003791' : '#6366F1';
+  const badgeTxt   = isPS4 ? 'PS4' : 'PS3';
 
   if (!session) {
-    statusBadge = '<span class="status-badge idle">KOSONG</span>';
-    cardBody = `
-      <div class="card-idle">
-        <div class="idle-icon">🎮</div>
-        <p class="idle-text">Unit Tersedia</p>
-        <button class="btn-open-session" onclick="openOpenSessionModal(${unit.id})">+ Buka Sesi</button>
-      </div>`;
-  } else if (session.status === 'WAITING') {
-    statusBadge = '<span class="status-badge waiting">⏳ MENUNGGU</span>';
-    const playerTxt = session.players === 1 ? '👤 1 Orang' : '👥 2 Orang';
-    cardBody = `
-      <div class="session-info">
-        <div class="session-meta"><span class="meta-badge player-badge">${playerTxt}</span></div>
-        ${session.note ? `<div class="session-note">📝 ${esc(session.note)}</div>` : ''}
-        <p class="waiting-msg">⏳ Menunggu game dimulai...</p>
-        <div class="waiting-time"><small>Dibuka: ${fmtTime(new Date(session.openedAt))}</small></div>
+    return `
+    <div id="ps-card-${unit.id}" class="ps-card idle" onclick="openOpenSessionModal(${unit.id})">
+      <div class="noc-card-header">
+        <div class="noc-ps-title-group">
+          <span class="noc-ps-number">PS ${unit.id}</span>
+          <span class="noc-type-badge" style="background:${badgeColor}">${badgeTxt}</span>
+        </div>
+        <span class="noc-status-chip noc-idle">KOSONG</span>
       </div>
-      <div class="card-actions">
-        <button class="btn-start-timer" onclick="openStartTimerModal(${unit.id})">▶ Mulai Timer</button>
-        <button class="btn-cancel" onclick="askCancelSession(${unit.id})">✕ Batalkan</button>
-      </div>`;
-  } else if (session.status === 'ACTIVE') {
-    const now       = Date.now();
-    const remaining = session.endTimestamp - now;
-    const expired   = remaining <= 0;
-    const warn5     = !expired && remaining <= 5  * 60 * 1000;
-    const near10    = !expired && remaining <= 10 * 60 * 1000;
-    const timerCls  = expired ? 'timer-expired' : warn5 ? 'timer-warning' : near10 ? 'timer-near' : '';
-    const countdown = expired ? 'WAKTU HABIS!' : fmtCountdown(remaining);
-    const pkg       = PACKAGES.find(p => p.minutes === session.packageMinutes) || {};
-    const endDt     = new Date(session.endTimestamp);
-    const snackTot  = session.snacks.reduce((s,x) => s+x.price, 0);
-    const total     = session.price + snackTot;
-    const paidCls   = session.paid ? 'paid' : 'unpaid';
-    const paidTxt   = session.paid ? '✓ SUDAH BAYAR' : '⚠ BELUM BAYAR';
-    const statBadge = (expired||warn5) ? 'timer-warning' : 'active';
-    const bonusTxt  = session.bonusMinutes > 0 ? `<span class="bonus-badge">🎁 +${session.bonusMinutes}min</span>` : '';
-    statusBadge = `<span class="status-badge ${statBadge}">● AKTIF</span>`;
-    const snacksHTML = session.snacks.length > 0 ? `
-      <div class="snacks-section">
-        <div class="snacks-header">🍿 Jajanan</div>
-        <div class="snacks-list">
-          ${session.snacks.map((s,i) => `
-            <div class="snack-item">
-              <span class="snack-name">${esc(s.name)}</span>
-              <span class="snack-price">${fmtRp(s.price)}</span>
-              <button class="snack-remove" onclick="removeSnack(${unit.id},${i})">✕</button>
-            </div>`).join('')}
-        </div>
-      </div>` : '';
-    cardBody = `
-      <div class="session-info">
-        <div class="session-meta">
-          <span class="meta-badge player-badge">${session.players===1?'👤 1 Orang':'👥 2 Orang'}</span>
-          <span class="meta-badge package-badge">${pkg.label||'—'}</span>
-          ${bonusTxt}
-        </div>
-        ${session.note ? `<div class="session-note">📝 ${esc(session.note)}</div>` : ''}
-        <div class="timer-display ${timerCls}" id="timer-display-${unit.id}">
-          <div class="timer-countdown" id="timer-${unit.id}">${countdown}</div>
-          <div class="timer-sub">
-            <span>Mulai: ${session.startTime}</span>
-            <span>Selesai: ${fmtTime(endDt)}</span>
-          </div>
-        </div>
-        ${snacksHTML}
-        <div class="price-section" id="price-sect-${unit.id}">
-          <div class="price-row-mini"><span>Waktu:</span><span>${fmtRp(session.price)}</span></div>
-          ${snackTot>0?`<div class="price-row-mini"><span>Jajanan:</span><span>${fmtRp(snackTot)}</span></div>`:''}
-          <div class="price-row-mini total"><span>Total:</span><span>${fmtRp(total)}</span></div>
-        </div>
+      <div class="noc-idle-body">
+        <span class="material-symbols-outlined noc-idle-icon">sports_esports</span>
       </div>
-      <div class="card-actions">
-        <button class="btn-adjust-time" onclick="openAdjustTimeModal(${unit.id})">⏱️ Ubah Waktu</button>
-        <button class="btn-snack" onclick="openSnackModal(${unit.id})">🍿 Tambah Jajanan</button>
-        <button class="btn-pay ${paidCls}" id="btn-pay-${unit.id}" onclick="togglePayment(${unit.id})">${paidTxt}</button>
-        <button class="btn-close-session" onclick="openCloseSessionModal(${unit.id})">❌ Tutup Sesi</button>
-      </div>`;
+      <button class="noc-btn-open" onclick="event.stopPropagation();openOpenSessionModal(${unit.id})">
+        <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">power_settings_new</span>
+        Buka Sesi
+      </button>
+    </div>`;
   }
 
-  return `
-    <div id="ps-card-${unit.id}" class="ps-card ${unit.type.toLowerCase()} ${cardStatus}">
-      <div class="card-header">
-        <div class="card-title">
-          <span class="type-badge ${typeClass}">${unit.type}</span>
-          <span class="ps-number">PS ${unit.id}</span>
+  if (session.status === 'WAITING') {
+    const playerTxt = session.players === 1 ? '1 Pemain' : '2 Pemain';
+    return `
+    <div id="ps-card-${unit.id}" class="ps-card waiting" onclick="openBottomSheet(${unit.id})">
+      <div class="noc-card-header">
+        <div class="noc-ps-title-group">
+          <span class="noc-ps-number">${unit.id < 10 ? 'PS ' + unit.id : 'PS' + unit.id}</span>
+          <span class="noc-type-badge" style="background:${badgeColor}">${badgeTxt}</span>
         </div>
-        ${statusBadge}
+        <span class="noc-status-chip noc-waiting">TUNGGU</span>
       </div>
-      <div class="card-body">${cardBody}</div>
+      <div class="noc-waiting-body">
+        <span class="material-symbols-outlined noc-wait-icon">pause_circle</span>
+        <span class="noc-wait-label">Menunggu konfirmasi pemain.</span>
+      </div>
+      <button class="noc-btn-primary" onclick="event.stopPropagation();openStartTimerModal(${unit.id})">
+        <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">play_arrow</span>
+        Mulai Sesi
+      </button>
     </div>`;
+  }
+
+  // ACTIVE
+  const now        = Date.now();
+  const isOpenTime = session.packageMinutes === 0;
+  const remaining  = session.endTimestamp - now;
+  const elapsed    = now - (session.startTimestamp || now);
+  const expired    = !isOpenTime && remaining <= 0;
+  const warn5      = !isOpenTime && !expired && remaining <= 5 * 60 * 1000;
+  const near10     = !isOpenTime && !expired && remaining <= 10 * 60 * 1000;
+
+  const countdown = isOpenTime
+    ? fmtCountdown(elapsed)
+    : expired ? '00:00:00' : fmtCountdown(remaining);
+  const statusTxt = expired ? '⚠ HABIS' : near10 ? '⚠ HAMPIR' : '● AKTIF';
+
+  let statusChipCls = expired ? 'noc-expired' : near10 ? 'noc-warning' : 'noc-active';
+  let cardCls       = expired ? 'ps-card active expired-pulse' : 'ps-card active';
+  let timerColor    = expired ? '#EF4444' : near10 ? '#F59E0B' : '#10B981';
+
+  // Progress bar calculation (% elapsed of total)
+  let progressPct = 0;
+  if (!isOpenTime && session.totalMinutes > 0) {
+    const totalMs = session.totalMinutes * 60 * 1000;
+    progressPct   = Math.min(100, Math.round((elapsed / totalMs) * 100));
+  }
+
+  const pkg      = PACKAGES.find(p => p.minutes === session.packageMinutes) || {};
+  const endDt    = session.endTimestamp ? new Date(session.endTimestamp) : null;
+  const snackTot = session.snacks.reduce((s,x) => s+x.price, 0);
+  const total    = session.price + snackTot;
+  const paidCls  = session.paid ? 'paid' : 'unpaid';
+  const paidTxt  = session.paid ? '✓ SUDAH BAYAR' : '⚠ BELUM BAYAR';
+
+  const timerLabel = isOpenTime ? 'ELAPSED TIME' : expired ? 'WAKTU HABIS' : 'TIME REMAINING';
+
+  return `
+  <div id="ps-card-${unit.id}" class="${cardCls}" onclick="openBottomSheet(${unit.id})">
+    <div class="noc-card-header">
+      <div class="noc-ps-title-group">
+        <span class="noc-ps-number" style="color:${expired?'#EF4444':'inherit'}">${unit.id < 10 ? 'PS ' + unit.id : 'PS' + unit.id}</span>
+        <span class="noc-type-badge" style="background:${badgeColor}">${badgeTxt}</span>
+      </div>
+      <span class="noc-status-chip ${statusChipCls}">${statusTxt}</span>
+    </div>
+
+    <div class="noc-timer-box" style="border-color:${timerColor}20;background:rgba(${expired?'239,68,68':'16,185,129'},0.05)">
+      <div class="noc-timer-label">${timerLabel}</div>
+      <div class="noc-timer-digits" id="timer-${unit.id}" style="color:${timerColor}">${countdown}</div>
+      ${!isOpenTime ? `
+      <div class="noc-progress-bar">
+        <div class="noc-progress-fill" style="width:${progressPct}%;background:${timerColor}"></div>
+      </div>
+      <div class="noc-timer-times">
+        <span>${session.startTime || '—'}</span>
+        <span>${endDt ? fmtTime(endDt) : '—'}</span>
+      </div>` : `<div style="font-size:0.72rem;color:var(--text-dim);margin-top:2px">Open Time — Billing Biasa</div>`}
+    </div>
+
+    ${total > 0 ? `
+    <div class="noc-billing-mini">
+      <span style="color:var(--text-dim);font-size:0.78rem">Tagihan:</span>
+      <span style="font-weight:800;color:${expired?'#EF4444':'var(--text)'}">${fmtRp(total)}</span>
+    </div>` : ''}
+
+    ${expired ? `
+    <button class="noc-btn-danger" onclick="event.stopPropagation();openCloseSessionModal(${unit.id})">
+      <span class="material-symbols-outlined" style="font-size:1rem;vertical-align:middle">stop_circle</span>
+      Tutup Sesi &amp; Bayar
+    </button>` : `
+    <div class="noc-card-actions">
+      <button class="noc-btn-ghost" onclick="event.stopPropagation();openSnackModal(${unit.id})">
+        <span class="material-symbols-outlined" style="font-size:0.9rem;vertical-align:middle">add_shopping_cart</span>
+        Snack
+      </button>
+      <button class="noc-btn-ghost noc-btn-blue" onclick="event.stopPropagation();openAdjustTimeModal(${unit.id})">
+        <span class="material-symbols-outlined" style="font-size:0.9rem;vertical-align:middle">more_time</span>
+        +Waktu
+      </button>
+    </div>`}
+  </div>`;
 }
 
 // ===== NOTIFICATIONS =====
